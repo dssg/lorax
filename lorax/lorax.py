@@ -1,157 +1,19 @@
+import re
+import logging
+import numpy as np
+import pandas as pd
+
+from utils import *
 
 from math import sqrt
 from scipy import stats
-import pandas as pd
-import numpy as np
-
-import re
 from itertools import product
-
-import logging
-from IPython.core.display import HTML, display
-
 from matplotlib import pyplot as plt
+
 import matplotlib.patches as mpatches
 import matplotlib.lines as mlines
 
-def patterns_from_config(feature_config, include_metrics=True):
-    """
-    Helper function to parse a triage feature config and return
-    regex patterns that will match the features either to the
-    level of column name or column name + aggregation function.
-
-    When using with `include_metrics=True` (the default), returned
-    patterns will be of the form:
-        categoricals: ^prefix_(group1|group2|...)_[^_]+_column_(.*)_metric$
-        aggregates: ^prefix_(group1|group2|...)_[^_]+_quantity_metric(_imp)?$
-    So, any feature with the same prefix, column/quantity, and aggregation
-    metric will be treated as the same for aggregating contributions.
-
-    When using with `include_metrics=False`, the returned patterns
-    will be of the form:
-        categoricals: ^prefix_(group1|group2|...)_[^_]+_column_
-        aggregates: ^prefix_(group1|group2|...)_[^_]+_quantity_
-    In this case, feature contribution will be aggregated at the level
-    of prefix and column/quantity.
-
-    Note that in either case, the returned patterns assume no column
-    name truncation will take place between the config and the matrix.
-
-
-    Arguments:
-        feature_config (dict) A triage feature config for all of
-            the features in the test matrix to be explained
-        include_metrics (bool) When True, aggregation metrics
-            (sum/avg/max/etc.) will be included in the pattern
-            to match, making these distinct sets of features
-
-    Returns:
-        (list) A list of regular expression patterns to match the
-        sets of features in the feature config
-
-    """
-    name_patterns = []
-    for fg in feature_config:
-        prefix = fg['prefix']
-        groups = r'(%s)' % r'|'.join(fg['groups'])
-        intervals = r'[^_]+'
-
-        for cat in fg.get('categoricals', []):
-            col = cat['column']
-            pattern = r'^%s_%s_%s_%s_' % (prefix, groups, intervals, col)
-            if include_metrics:
-                for met in cat['metrics']:
-                    agg_pattern = pattern + (r'(.*)_%s$' % met)
-                    name_patterns.append(agg_pattern)
-            else:
-                name_patterns.append(pattern)
-
-        for agg in fg.get('aggregates', []):
-            quant = agg['quantity']
-            if isinstance(quant, dict):
-                # quantity was specified with a SQL query and name
-                quant = list(quant.keys())[0]
-            else:
-                # quantity was specified as a column name
-                quant = quant
-
-            pattern = r'^%s_%s_%s_%s_' % (prefix, groups, intervals, quant)
-            if include_metrics:
-                for met in agg['metrics']:
-                    # note there could be an imputation flag for aggregates
-                    # (different than categoricals which use a NULL category)
-                    agg_pattern = pattern + (r'%s(_imp)?$' % met)
-                    name_patterns.append(agg_pattern)
-            else:
-                name_patterns.append(pattern)
-
-    return name_patterns
-
-def categorical_patterns_from_config(feature_config):
-    """
-    Helper function to parse a triage feature config and return
-    regex patterns that will combine across categoricals as well
-    as aggregates and their imputation flags, but otherwise treat
-    all feature parameters as distinct.
-
-    Here, returned patterns will be of the form:
-        categoricals: ^prefix_group_interval_column_(.*)_metric$
-        aggregates: ^prefix_group_interval_quantity_metric(_imp)?$
-
-    Note that the returned patterns assume no column name truncation 
-    will take place between the config and the matrix.
-
-
-    Arguments:
-        feature_config (dict) A triage feature config for all of
-            the features in the test matrix to be explained
-
-    Returns:
-        (list) A list of regular expression patterns to match the
-        sets of features in the feature config
-
-    """
-
-    # TODO: In theory this could be treated more like the general
-    # "features" case where we also provide distribution statistics,
-    # but doing so will require a little work to figure out how to
-    # visualize the categoricals and imputated values sensibly...
-
-    name_patterns = []
-    for fg in feature_config:
-        prefix = fg['prefix']
-        groups = fg['groups']
-        intervals = fg['intervals']
-
-        for cat in fg.get('categoricals', []):
-            col = cat['column']
-            metrics = cat['metrics']
-
-            for group, interval, metric in product(
-                groups, intervals, metrics
-                ):
-                name_patterns.append(r'^%s_%s_%s_%s_(.*)_%s$' % (
-                    prefix, group, interval, col, metric
-                ))
-
-        for agg in fg.get('aggregates', []):
-            metrics = agg['metrics']
-            quant = agg['quantity']
-            if isinstance(quant, dict):
-                # quantity was specified with a SQL query and name
-                quant = list(quant.keys())[0]
-            else:
-                # quantity was specified as a column name
-                quant = quant
-
-            for group, interval, metric in product(
-                groups, intervals, metrics
-                ):
-                name_patterns.append(r'^%s_%s_%s_%s_%s(_imp)?$' % (
-                    prefix, group, interval, quant, metric
-                )) 
-
-    return name_patterns
+from IPython.core.display import HTML, display
 
 
 class TheLorax(object):
@@ -168,31 +30,49 @@ class TheLorax(object):
     with other types of models and problems (regression/multinomial classification)
 
     Args:
-        rf (sklearn.ensemble.RandomForestClassifier) The classifier to be explained
-        test_mat (pandas.DataFrame) The test matrix containing all examples be
+        - rf (sklearn.ensemble.RandomForestClassifier): The classifier to be explained
+        - test_mat (pandas.DataFrame): The test matrix containing all examples to be
             explained. If `id_col=None` (the default), the id for referencing entities
             must be set as this dataframe's index.
-        id_col (str) The column name for the entity id in the test matrix. If `None`
+        - id_col (str): The column name for the entity id in the test matrix. If `None`
             (the default), the test matrix must be indexed by the entity id.
-        date_col (str) The date column in the matrix (default: `as_of_date`)
-        outcome_col (str) The outcome column in the matrix (default: `outcome`). To
+        - date_col (str): The date column in the matrix (default: `as_of_date`)
+        - outcome_col (str): The outcome column in the matrix (default: `outcome`). To
             indicate that the test matrix has no labels, set `outcome_col=None`.
-        name_patterns (list) An optional list of regex patterns or compiled regex 
+        - name_patterns (list): An optional list of regex patterns or compiled regex
             objects to group together features for reporting contributions. If using,
             each feature name in the test matrix must match one and only one pattern.
+        - multiple_dates_per_id (bool): An optional list of regex patterns or compiled regex
+            objects to group together features for reporting contributions. If using,
+
     """
-    def __init__(self, rf, test_mat, id_col=None, 
-                 date_col='as_of_date', outcome_col='outcome', 
-                 name_patterns=None):
+    def __init__(self, rf, test_mat, id_col=None,
+                 date_col='as_of_date', outcome_col='outcome',
+                 name_patterns=None, multiple_dates_per_id=False):
         self.rf = rf
 
         df = test_mat.copy()
+
+        index_columns=[]
         if id_col is not None:
             # if ID isn't already the index
-            df.set_index(id_col, inplace=True)
+            index_columns.append(id_col)
 
-        # exclude non-feature columns (date, outcome if present)
-        drop_cols = [date_col]
+        # If we have multiple dates per entity, we need date_col
+        # to be part of index as well.
+        if multiple_dates_per_id:
+            index_columns.append(date_col)
+
+        if index_columns:
+            df.set_index(index_columns, inplace=True)
+
+        # exclude non-feature columns (date [depends on multiple_dates_per_id],
+        # outcome if present)
+        if multiple_dates_per_id:
+            drop_cols = []
+        else:
+            drop_cols = [date_col]
+
         if outcome_col is not None:
             drop_cols.append(outcome_col)
             self.y_test = df[outcome_col]
@@ -223,13 +103,13 @@ class TheLorax(object):
         Pre-calculates the feature distribution information from the test matrix, including
         type (continuous or binary), mean, median, 5th & 95th percentiles, standard deviation.
         """
-        fstats = pd.DataFrame(columns=['feature', 'type', 'mean', 'stdev', 'median', 'p5', 'p95'])
+        fstats = pd.DataFrame(columns=['feature', 'type', 'mean', 'stdev', 'median', 'p5', 'p95', 'mean_pctl'])
         dtypes = self.X_test.dtypes
         for col in self.column_names:
             feat = self.X_test[col]
             d = {
-                'feature': col, 
-                'mean': feat.mean(), 
+                'feature': col,
+                'mean': feat.mean(),
                 'median': feat.median(),
                 'p5': feat.quantile(0.05),
                 'p95': feat.quantile(0.95),
@@ -270,8 +150,8 @@ class TheLorax(object):
         regex mapping associated with the object).
 
         Arguments:
-            name_patters (list) A list of regex patterns or compiled regex objects to 
-            group together features for reporting contributions. If using, each feature 
+            name_patters (list) A list of regex patterns or compiled regex objects to
+            group together features for reporting contributions. If using, each feature
             name in the test matrix must match one and only one pattern.
         """
         column_patterns = {}
@@ -301,7 +181,6 @@ class TheLorax(object):
         df.set_index('feature', inplace=True)
 
         self.column_patterns = df
-
 
     def _get_dict_of_score_differences(self, sample, score_diff_dict, previous_feature, previous_score,
                                       node_id, feature, threshold, children_left,
@@ -452,7 +331,6 @@ class TheLorax(object):
 
         return diff_list_dict
 
-
     def _aggregate_scores(self, feature_dict, num_trees):
         """
         Aggregates scores for features.
@@ -559,7 +437,7 @@ class TheLorax(object):
 
         for rect, label in zip(rects, labels):
             height = rect.get_height()
-            ax.text(rect.get_x()+rect.get_width(), rect.get_y()+height/2, label, ha='left', va='center', 
+            ax.text(rect.get_x()+rect.get_width(), rect.get_y()+height/2, label, ha='left', va='center',
                     color='black', fontsize=14)
 
     def _plot_dists(self, df, num_features, ax):
@@ -591,7 +469,7 @@ class TheLorax(object):
 
         for rect, label in zip(rects, labels):
             height = rect.get_height()
-            ax.text(1.05, rect.get_y()+height/2, label, ha='left', va='center', 
+            ax.text(1.05, rect.get_y()+height/2, label, ha='left', va='center',
                     color='black', fontsize=14)
 
         ax.text(1.05, num_features-0.3, 'z-value', ha='left', va='center', color='black', fontsize=14)
@@ -601,13 +479,13 @@ class TheLorax(object):
         gray_point = mlines.Line2D([], [], color='gray', marker='o', ms=10, linewidth=0, label='Test Set Mean')
         orange_point = mlines.Line2D([], [], color='#E59141', marker='o', ms=10, linewidth=0, label='This Value')
         ax.legend(
-            handles=[gray_patch, gray_point, orange_point], 
-            fontsize=14, ncol=3, loc='upper center', bbox_to_anchor=(0.5,0.0), 
+            handles=[gray_patch, gray_point, orange_point],
+            fontsize=14, ncol=3, loc='upper center', bbox_to_anchor=(0.5,0.0),
             facecolor='white', edgecolor='None',
             handletextpad=0.2, columnspacing=0.2
-        ) 
+        )
 
-        # plot points for 
+        # plot points for
         y_vals = list(range(num_features))
         ax.scatter(list(df['mean_pctl']), y_vals, color='gray', s=100, zorder=4)  # test set mean
         ax.scatter(list(df['example_pctl']), y_vals, color='#E59141', s=100, zorder=5) # example value
@@ -619,24 +497,23 @@ class TheLorax(object):
         ax.set_facecolor('white')
         ax.set_title('Feature Distributions', fontsize=16)
 
-
     def explain_example(self, idx, pred_class=None, num_features=10, graph=True, how='features'):
         """Graph or return individual feature importances for an example
 
         This method is the primary interface for TheLorax to calculate individual feature
         importances for a given example (identified by `idx`). It can be used to either
-        return a pandas DataFrame with contributions and feature distributions (if 
-        `graph=False`) or a graphical representation of the top `num_features` contributions 
+        return a pandas DataFrame with contributions and feature distributions (if
+        `graph=False`) or a graphical representation of the top `num_features` contributions
         (if `graph=True`, the default) for use in a jupyter notebook.
 
-        Feature contributions can be calucalted either for all features separately (`how='features',
+        Feature contributions can be calculated either for all features separately (`how='features',
         the default) or using regular expression patterns to group sets of features together
         (`how='patterns'`). When graphing contributions for all features, graphs will contain two
         components:
             1. A bar graph of the top num_features contributions to the example's score
-            2. For each of these features, a graph showing the percentile for the feature's mean 
-               across the entire test set (gray dot), the percentile of the feature value for the 
-               example being explained (orange dot) and the z-score for that value 
+            2. For each of these features, a graph showing the percentile for the feature's mean
+               across the entire test set (gray dot), the percentile of the feature value for the
+               example being explained (orange dot) and the z-score for that value
         When using regular expression patterns, the feature distribution information is omitted
         (from both graphical and dataframe outputs) as the contributions reflect aggregations over
         an arbitrary number and types of features.
@@ -669,7 +546,7 @@ class TheLorax(object):
         if how == 'patterns' and self.column_patterns is None:
             raise ValueError('Must specify name patterns to aggregate over. Use TheLorax.set_name_patterns() first.')
         elif how not in ['features', 'patterns']:
-            raise ValueError('how must be one of features or patterns.')
+            raise ValueError("how must be one of 'features' or 'patterns'.")
 
         # score for this example for the positive class
         # and threshold and 0.5 if pred_class is not given as an argument
@@ -697,7 +574,7 @@ class TheLorax(object):
 
         for feat, dic in aggregated_dict.items():
             mean_by_trees_list.append((feat, dic['diff_list']['mean_over_n_trees']))
-                
+
         # TODO: handle this more elegantly for multiclass problems
         if pred_class == 0:
             # We need to flip the sign of the scores.
