@@ -3,7 +3,7 @@ import logging
 import numpy as np
 import pandas as pd
 
-from utils import *
+from lorax.utils import *
 
 from math import sqrt
 from scipy import stats
@@ -42,8 +42,8 @@ class TheLorax(object):
         - name_patterns (list): An optional list of regex patterns or compiled regex
             objects to group together features for reporting contributions. If using,
             each feature name in the test matrix must match one and only one pattern.
-        - multiple_dates_per_id (bool): An optional list of regex patterns or compiled regex
-            objects to group together features for reporting contributions. If using,
+        - multiple_dates_per_id (bool): A bool to indicate whether or not test matrix contains
+            multiple rows, i.e., dates, per entity_id. Default is False.
 
     """
     def __init__(self, rf, test_mat, id_col=None,
