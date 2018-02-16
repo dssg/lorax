@@ -1,11 +1,12 @@
-
+"""Class for Lorax."""
+import numpy as np
+import pandas as pd
 from math import sqrt
 from scipy import stats
-import pandas as pd
-import numpy as np
+
+from lorax.utils import *
 
 import re
-from itertools import product
 
 import logging
 from IPython.core.display import HTML, display
@@ -13,145 +14,6 @@ from IPython.core.display import HTML, display
 from matplotlib import pyplot as plt
 import matplotlib.patches as mpatches
 import matplotlib.lines as mlines
-
-def patterns_from_config(feature_config, include_metrics=True):
-    """
-    Helper function to parse a triage feature config and return
-    regex patterns that will match the features either to the
-    level of column name or column name + aggregation function.
-
-    When using with `include_metrics=True` (the default), returned
-    patterns will be of the form:
-        categoricals: ^prefix_(group1|group2|...)_[^_]+_column_(.*)_metric$
-        aggregates: ^prefix_(group1|group2|...)_[^_]+_quantity_metric(_imp)?$
-    So, any feature with the same prefix, column/quantity, and aggregation
-    metric will be treated as the same for aggregating contributions.
-
-    When using with `include_metrics=False`, the returned patterns
-    will be of the form:
-        categoricals: ^prefix_(group1|group2|...)_[^_]+_column_
-        aggregates: ^prefix_(group1|group2|...)_[^_]+_quantity_
-    In this case, feature contribution will be aggregated at the level
-    of prefix and column/quantity.
-
-    Note that in either case, the returned patterns assume no column
-    name truncation will take place between the config and the matrix.
-
-
-    Arguments:
-        feature_config (dict) A triage feature config for all of
-            the features in the test matrix to be explained
-        include_metrics (bool) When True, aggregation metrics
-            (sum/avg/max/etc.) will be included in the pattern
-            to match, making these distinct sets of features
-
-    Returns:
-        (list) A list of regular expression patterns to match the
-        sets of features in the feature config
-
-    """
-    name_patterns = []
-    for fg in feature_config:
-        prefix = fg['prefix']
-        groups = r'(%s)' % r'|'.join(fg['groups'])
-        intervals = r'[^_]+'
-
-        for cat in fg.get('categoricals', []):
-            col = cat['column']
-            pattern = r'^%s_%s_%s_%s_' % (prefix, groups, intervals, col)
-            if include_metrics:
-                for met in cat['metrics']:
-                    agg_pattern = pattern + (r'(.*)_%s$' % met)
-                    name_patterns.append(agg_pattern)
-            else:
-                name_patterns.append(pattern)
-
-        for agg in fg.get('aggregates', []):
-            quant = agg['quantity']
-            if isinstance(quant, dict):
-                # quantity was specified with a SQL query and name
-                quant = list(quant.keys())[0]
-            else:
-                # quantity was specified as a column name
-                quant = quant
-
-            pattern = r'^%s_%s_%s_%s_' % (prefix, groups, intervals, quant)
-            if include_metrics:
-                for met in agg['metrics']:
-                    # note there could be an imputation flag for aggregates
-                    # (different than categoricals which use a NULL category)
-                    agg_pattern = pattern + (r'%s(_imp)?$' % met)
-                    name_patterns.append(agg_pattern)
-            else:
-                name_patterns.append(pattern)
-
-    return name_patterns
-
-def categorical_patterns_from_config(feature_config):
-    """
-    Helper function to parse a triage feature config and return
-    regex patterns that will combine across categoricals as well
-    as aggregates and their imputation flags, but otherwise treat
-    all feature parameters as distinct.
-
-    Here, returned patterns will be of the form:
-        categoricals: ^prefix_group_interval_column_(.*)_metric$
-        aggregates: ^prefix_group_interval_quantity_metric(_imp)?$
-
-    Note that the returned patterns assume no column name truncation 
-    will take place between the config and the matrix.
-
-
-    Arguments:
-        feature_config (dict) A triage feature config for all of
-            the features in the test matrix to be explained
-
-    Returns:
-        (list) A list of regular expression patterns to match the
-        sets of features in the feature config
-
-    """
-
-    # TODO: In theory this could be treated more like the general
-    # "features" case where we also provide distribution statistics,
-    # but doing so will require a little work to figure out how to
-    # visualize the categoricals and imputated values sensibly...
-
-    name_patterns = []
-    for fg in feature_config:
-        prefix = fg['prefix']
-        groups = fg['groups']
-        intervals = fg['intervals']
-
-        for cat in fg.get('categoricals', []):
-            col = cat['column']
-            metrics = cat['metrics']
-
-            for group, interval, metric in product(
-                groups, intervals, metrics
-                ):
-                name_patterns.append(r'^%s_%s_%s_%s_(.*)_%s$' % (
-                    prefix, group, interval, col, metric
-                ))
-
-        for agg in fg.get('aggregates', []):
-            metrics = agg['metrics']
-            quant = agg['quantity']
-            if isinstance(quant, dict):
-                # quantity was specified with a SQL query and name
-                quant = list(quant.keys())[0]
-            else:
-                # quantity was specified as a column name
-                quant = quant
-
-            for group, interval, metric in product(
-                groups, intervals, metrics
-                ):
-                name_patterns.append(r'^%s_%s_%s_%s_%s(_imp)?$' % (
-                    prefix, group, interval, quant, metric
-                )) 
-
-    return name_patterns
 
 
 class TheLorax(object):
@@ -169,7 +31,7 @@ class TheLorax(object):
 
     Args:
         rf (sklearn.ensemble.RandomForestClassifier) The classifier to be explained
-        test_mat (pandas.DataFrame) The test matrix containing all examples be
+        test_mat (pandas.DataFrame) The test matrix containing all examples to be
             explained. If `id_col=None` (the default), the id for referencing entities
             must be set as this dataframe's index.
         id_col (str) The column name for the entity id in the test matrix. If `None`
@@ -177,13 +39,22 @@ class TheLorax(object):
         date_col (str) The date column in the matrix (default: `as_of_date`)
         outcome_col (str) The outcome column in the matrix (default: `outcome`). To
             indicate that the test matrix has no labels, set `outcome_col=None`.
-        name_patterns (list) An optional list of regex patterns or compiled regex 
+        name_patterns (list) An optional list of regex patterns or compiled regex
             objects to group together features for reporting contributions. If using,
             each feature name in the test matrix must match one and only one pattern.
     """
-    def __init__(self, rf, test_mat, id_col=None, 
-                 date_col='as_of_date', outcome_col='outcome', 
+
+    def __init__(self, rf, test_mat, id_col=None,
+                 date_col='as_of_date', outcome_col='outcome',
                  name_patterns=None):
+        """
+        Initialize Lorax.
+
+        In:
+            - ...
+        Out:
+            - ...
+        """
         self.rf = rf
 
         df = test_mat.copy()
@@ -218,7 +89,7 @@ class TheLorax(object):
         self._populate_feature_stats()
 
     def _populate_feature_stats(self):
-        """Setter function for feature distribution statistics
+        """Setter function for feature distribution statistics.
 
         Pre-calculates the feature distribution information from the test matrix, including
         type (continuous or binary), mean, median, 5th & 95th percentiles, standard deviation.
@@ -228,8 +99,8 @@ class TheLorax(object):
         for col in self.column_names:
             feat = self.X_test[col]
             d = {
-                'feature': col, 
-                'mean': feat.mean(), 
+                'feature': col,
+                'mean': feat.mean(),
                 'median': feat.median(),
                 'p5': feat.quantile(0.05),
                 'p95': feat.quantile(0.95),
@@ -257,7 +128,7 @@ class TheLorax(object):
         return y / (x + y)
 
     def set_name_patterns(self, name_patterns):
-        """Map regex patterns to column names
+        """Map regex patterns to column names.
 
         When using regular expressions to combine features into groups for aggregating
         contributions, this method will create a lookup dataframe from every feature
@@ -270,8 +141,8 @@ class TheLorax(object):
         regex mapping associated with the object).
 
         Arguments:
-            name_patters (list) A list of regex patterns or compiled regex objects to 
-            group together features for reporting contributions. If using, each feature 
+            name_patters (list) A list of regex patterns or compiled regex objects to
+            group together features for reporting contributions. If using, each feature
             name in the test matrix must match one and only one pattern.
         """
         column_patterns = {}
@@ -302,13 +173,19 @@ class TheLorax(object):
 
         self.column_patterns = df
 
-
-    def _get_dict_of_score_differences(self, sample, score_diff_dict, previous_feature, previous_score,
-                                      node_id, feature, threshold, children_left,
-                                      children_right, scores):
+    def _get_dict_of_score_differences(self,
+                                       sample,
+                                       score_diff_dict,
+                                       previous_feature,
+                                       previous_score,
+                                       node_id,
+                                       feature,
+                                       threshold,
+                                       children_left,
+                                       children_right,
+                                       scores):
         """
-        Helper function to build global dict for feature importances.
-        Called by _build_global_dict(...).
+        Get dictionary of score differences. Used to build global dict for feature importances.
 
         In:
             - score_diff_dict:
@@ -326,11 +203,13 @@ class TheLorax(object):
         current_score = self._get_score(scores, node_id)
         current_score_diff = current_score - previous_score
 
-        if node_id != 0: # we don't want to add 0 diff from first node.
+        if node_id != 0:  # we don't want to add 0 diff from first node.
             if previous_feature in score_diff_dict:
                 score_diff_dict[previous_feature].append(current_score_diff)
             else:
                 score_diff_dict[previous_feature] = [current_score_diff]
+        else:
+            logging.info("Node id is 0. We do NOT add score_diff.")
 
         # now we need to find out if we have to go deeper
         current_feature_idx = feature[node_id]
@@ -353,51 +232,62 @@ class TheLorax(object):
 
     def _build_global_dict(self, sample):
         """
-        Builds global dict for feature importances.
+        Build global dict for feature importances.
+
         In:
             - sample: the sample for which we want to get feature importances.
         Out:
             - (dict) of form: {tree_index: {'feature_1':[0.1, 0.2], 'feature_2':[0.7]}}
         """
-        global_score_dict = {} #{tree_index: {'feature_1':[0.1, 0.2], 'feature_2':[0.7]}}
-
-        n_trees = self.rf.n_estimators
+        global_score_dict = {}  # {tree_index: {'feature_1':[0.1, 0.2], 'feature_2':[0.7]}}
 
         # loop through all trees
         for idx, estimator in enumerate(self.rf.estimators_):
             if ((idx + 1) % 100) == 0:
-                logging.info("Starting work on tree {}/{}".format(idx + 1, n_trees))
+                logging.info("Starting work on tree {}/{}".format(idx + 1, self.num_trees))
 
             # Getting tree's values
-            feature = estimator.tree_.feature
+            features = estimator.tree_.feature
             threshold = estimator.tree_.threshold
-            children_left = estimator.tree_.children_left # If feature's values less or equal than threshold, go here.
-            children_right = estimator.tree_.children_right # If feature's values higher than threshold, go here.
-            scores = estimator.tree_.value # 2d array of scores at each node/leaf.
+            # If feature's value less or equal than threshold, go here.
+            children_left = estimator.tree_.children_left
+            # If feature's value higher than threshold, go here.
+            children_right = estimator.tree_.children_right
+            # 2d array of scores at each node/leaf.
+            scores = estimator.tree_.value
 
             # Initializing start values.
             next_node_id = 0
-            current_feature = self.column_names[feature[next_node_id]]
+            current_feature = self.column_names[features[next_node_id]]
             current_score = self._get_score(scores, next_node_id)
             score_diff_dict = {}
 
             need_to_continue = True
             while need_to_continue:
-                result_tuple = self._get_dict_of_score_differences(sample, score_diff_dict, current_feature,
-                                                             current_score, next_node_id, feature,
-                                                             threshold, children_left, children_right, scores)
+                result_tuple = self._get_dict_of_score_differences(sample,
+                                                                   score_diff_dict,
+                                                                   current_feature,
+                                                                   current_score,
+                                                                   next_node_id,
+                                                                   features,
+                                                                   threshold,
+                                                                   children_left,
+                                                                   children_right,
+                                                                   scores)
                 if result_tuple:
                     score_diff_dict, current_feature, current_score, next_node_id = result_tuple
                 else:
                     need_to_continue = False
 
             global_score_dict[idx] = score_diff_dict
+
         return global_score_dict
 
     def _aggregate_feature_scores_across_trees(self, global_score_dict):
         """
-        Does the first aggregation across trees. You might want to consider
-        following this function with aggregate_scores.
+        Do the first aggregation across trees.
+
+        You might want to consider following this function with aggregate_scores.
         In:
             - global_score_dict: (dict) of form
                 {tree_index: {'feature_1':[0.1, 0.2], 'feature_2':[0.7]}}
@@ -410,20 +300,28 @@ class TheLorax(object):
         feature_dict = {}
 
         for tree_id, trees_dict in global_score_dict.items():
+
             for feature, diff_list in trees_dict.items():
+
                 if feature in feature_dict:
                     total_diff_list, mean_diff_list = feature_dict[feature]
                     total_diff_list += diff_list
                     mean_diff_list.append(np.array(diff_list).mean())
                     feature_dict[feature] = (total_diff_list, mean_diff_list)
+
                 else:
                     mean_diff_list = [np.array(diff_list).mean()]
-                    feature_dict[feature] = (diff_list, mean_diff_list)
+                    # we need a new copy of diff_list so that we don't
+                    # manipulate the diff_list of the global dict.
+                    # we achieve this by calling list(diff_list)
+                    feature_dict[feature] = (list(diff_list), mean_diff_list)
 
         return feature_dict
 
-    def _get_descriptive_dict(self, input_array, num_trees, mean_diff=False):
+    def _get_descriptive_dict(self, input_array, mean_diff=False):
         """
+        Get dict with descriptive statistics.
+
         In:
             - input_array: np array
             - num_trees: (int) of number of trees
@@ -444,18 +342,19 @@ class TheLorax(object):
         diff_list_dict = {"input_list": input_array,
                           "mean": mean,
                           occurence_string: len(input_array),
-                          "mean_over_n_trees": sum(input_array) / num_trees, # sum of diffs over total number of trees
+                          # sum of diffs over total number of trees
+                          "mean_over_n_trees": sum(input_array) / self.num_trees,
                           "std": std,
                           "max_value": max_value,
                           "min_value": min_value
-                         }
+                          }
 
         return diff_list_dict
 
-
-    def _aggregate_scores(self, feature_dict, num_trees):
+    def _aggregate_scores(self, feature_dict):
         """
-        Aggregates scores for features.
+        Aggregate scores for features.
+
         In:
             - feature_dict: (dict) of form
             {'feature_1': ([0.1, 0.2, 0.3], [0.1, 0.25])}
@@ -470,8 +369,9 @@ class TheLorax(object):
         for feature, diff_list_tuple in feature_dict.items():
 
             diff_list, mean_diff_list = diff_list_tuple
-            diff_list_dict = self._get_descriptive_dict(np.array(diff_list), num_trees)
-            mean_diff_list_dict = self._get_descriptive_dict(np.array(mean_diff_list), num_trees, mean_diff = True)
+            diff_list_dict = self._get_descriptive_dict(np.array(diff_list))
+            mean_diff_list_dict = self._get_descriptive_dict(np.array(mean_diff_list),
+                                                             mean_diff=True)
 
             aggregated_dict[feature] = {"diff_list": diff_list_dict,
                                         "mean_diff_list": mean_diff_list_dict}
@@ -479,8 +379,7 @@ class TheLorax(object):
 
     def _add_overall_feature_importance(self, sample_importance, overall_importance):
         """
-        Builds new list showing feature and its importances for a sample and in overall
-        model.
+        Build new list showing feature and its importances for a sample and in overall model.
 
         In:
             - sample_importance: (list) of form
@@ -488,7 +387,8 @@ class TheLorax(object):
             - overall_importance: (list) of form
                 [('feature1', 'importance'), ('feature2', 'importance'))]
         Out:
-            - [('feature1', 'sample_imp', 'sample_rank', 'overall_imp', 'overall_rank', 'rank_change')]
+            - [('feature1', 'sample_imp', 'sample_rank',
+                'overall_imp', 'overall_rank', 'rank_change')]
         """
         # TODO: add overall importances to output
         updated_list = []
@@ -511,7 +411,8 @@ class TheLorax(object):
 
     def _mean_of_feature_by_class(self, sample_id, feature_name, vectors, targets):
         """
-        Returns sample's value for feature, and mean of feature for class 0 and 1.
+        Get sample's value for feature, and mean of feature for class 0 and 1.
+
         In:
             - sample_id: (int) for row number of sample
             - feature_name: (str) name of feature that we want to get mean for
@@ -530,7 +431,7 @@ class TheLorax(object):
         return sample_id_value, class_0_mean, class_1_mean
 
     def _plot_contribs(self, df, num_features, ax, include_values=True):
-        """Plot a horizontal bar plot of feature contributions
+        """Plot a horizontal bar plot of feature contributions.
 
         Arguments:
             df (pandas.DataFrame) The dataframe containing data to plot. Must be indexed
@@ -550,7 +451,8 @@ class TheLorax(object):
         # where the entity doesn't have a single value for the set of features
         if include_values:
             # set y labels with feature name and value
-            _ = ax.set_yticklabels(['{} = {:.3f}'.format(feat, val) for feat, val in df['example_value'].iteritems() ])
+            ylabels = ['{} = {:.3f}'.format(f, v) for f, v in df['example_value'].iteritems()]
+            _ = ax.set_yticklabels(ylabels)
         ax.set_xticks([])
 
         # add data labels for contributions
@@ -559,11 +461,12 @@ class TheLorax(object):
 
         for rect, label in zip(rects, labels):
             height = rect.get_height()
-            ax.text(rect.get_x()+rect.get_width(), rect.get_y()+height/2, label, ha='left', va='center', 
+            ax.text(rect.get_x()+rect.get_width(), rect.get_y()+height/2,
+                    label, ha='left', va='center',
                     color='black', fontsize=14)
 
     def _plot_dists(self, df, num_features, ax):
-        """Plot feature distributions on percentile scale
+        """Plot feature distributions on percentile scale.
 
         This method will generate a plot to provide a quick look at the distribution of
         each of the top n features in the test set, including a few pieces of information:
@@ -583,7 +486,7 @@ class TheLorax(object):
         pd.DataFrame(
                 {'a': [0.9]*num_features}
             ).plot(kind='barh', left=[0.05]*num_features, color='lightgray', width=0.5, ax=ax)
-        ax.set_xlim([-0.05,1.05])
+        ax.set_xlim([-0.05, 1.05])
 
         # add z-score labels to right of plot
         rects = ax.patches
@@ -591,27 +494,32 @@ class TheLorax(object):
 
         for rect, label in zip(rects, labels):
             height = rect.get_height()
-            ax.text(1.05, rect.get_y()+height/2, label, ha='left', va='center', 
+            ax.text(1.05, rect.get_y()+height/2, label, ha='left', va='center',
                     color='black', fontsize=14)
 
-        ax.text(1.05, num_features-0.3, 'z-value', ha='left', va='center', color='black', fontsize=14)
+        ax.text(1.05, num_features-0.3, 'z-value', ha='left',
+                va='center', color='black', fontsize=14)
 
         # add a legend
         gray_patch = mpatches.Patch(color='lightgray', label=r'Test Set 5%-95%')
-        gray_point = mlines.Line2D([], [], color='gray', marker='o', ms=10, linewidth=0, label='Test Set Mean')
-        orange_point = mlines.Line2D([], [], color='#E59141', marker='o', ms=10, linewidth=0, label='This Value')
+        gray_point = mlines.Line2D([], [], color='gray', marker='o', ms=10,
+                                   linewidth=0, label='Test Set Mean')
+        orange_point = mlines.Line2D([], [], color='#E59141', marker='o',
+                                     ms=10, linewidth=0, label='This Value')
         ax.legend(
-            handles=[gray_patch, gray_point, orange_point], 
-            fontsize=14, ncol=3, loc='upper center', bbox_to_anchor=(0.5,0.0), 
+            handles=[gray_patch, gray_point, orange_point],
+            fontsize=14, ncol=3, loc='upper center', bbox_to_anchor=(0.5, 0.0),
             facecolor='white', edgecolor='None',
             handletextpad=0.2, columnspacing=0.2
-        ) 
+        )
 
-        # plot points for 
+        # plot points for
         y_vals = list(range(num_features))
         ax.scatter(list(df['mean_pctl']), y_vals, color='gray', s=100, zorder=4)  # test set mean
-        ax.scatter(list(df['example_pctl']), y_vals, color='#E59141', s=100, zorder=5) # example value
-        ax.plot([0.5,0.5], [-1, num_features], color='darkgray', linewidth=1, zorder=3) # line for median
+        # example value
+        ax.scatter(list(df['example_pctl']), y_vals, color='#E59141', s=100, zorder=5)
+        # line for median
+        ax.plot([0.5, 0.5], [-1, num_features], color='darkgray', linewidth=1, zorder=3)
 
         # cleanup
         ax.set_yticks([])
@@ -619,14 +527,13 @@ class TheLorax(object):
         ax.set_facecolor('white')
         ax.set_title('Feature Distributions', fontsize=16)
 
-
     def explain_example(self, idx, pred_class=None, num_features=10, graph=True, how='features'):
-        """Graph or return individual feature importances for an example
+        """Graph or return individual feature importances for an example.
 
         This method is the primary interface for TheLorax to calculate individual feature
         importances for a given example (identified by `idx`). It can be used to either
-        return a pandas DataFrame with contributions and feature distributions (if 
-        `graph=False`) or a graphical representation of the top `num_features` contributions 
+        return a pandas DataFrame with contributions and feature distributions (if
+        `graph=False`) or a graphical representation of the top `num_features` contributions
         (if `graph=True`, the default) for use in a jupyter notebook.
 
         Feature contributions can be calucalted either for all features separately (`how='features',
@@ -634,9 +541,9 @@ class TheLorax(object):
         (`how='patterns'`). When graphing contributions for all features, graphs will contain two
         components:
             1. A bar graph of the top num_features contributions to the example's score
-            2. For each of these features, a graph showing the percentile for the feature's mean 
-               across the entire test set (gray dot), the percentile of the feature value for the 
-               example being explained (orange dot) and the z-score for that value 
+            2. For each of these features, a graph showing the percentile for the feature's mean
+               across the entire test set (gray dot), the percentile of the feature value for the
+               example being explained (orange dot) and the z-score for that value
         When using regular expression patterns, the feature distribution information is omitted
         (from both graphical and dataframe outputs) as the contributions reflect aggregations over
         an arbitrary number and types of features.
@@ -652,27 +559,28 @@ class TheLorax(object):
             graph (bool) Whether to graph the feature contributions or return a dataframe
                 without graphing (default: True)
             how (str) Whether to calculate feature contributions at the level of individual features
-                (`how='features'`, the default) or using regular expression patterns (`how='patterns'`).
+                (`how='features'`, the default) or using regex patterns (`how='patterns'`).
                 If using regex patterns, `name_patterns` must have been provided when the object
                 was constructed or through calling `set_name_patterns()`.
 
         Returns:
             If `graph=False`, returns a pandas dataframe with individual feature contributions
             and (if using `how='features'`) feature distribution information
-        """
 
+        """
         # TODO: Categoricals can be handled using regex patterns, but this currently precludes
         # showing feature distribution information (since we don't know how to combine distributions
         # for arbitary feature groupings), but if just using patterns for categoricals/imputed flags
         # we should still be able to show relevant distribution info...
 
         if how == 'patterns' and self.column_patterns is None:
-            raise ValueError('Must specify name patterns to aggregate over. Use TheLorax.set_name_patterns() first.')
+            raise ValueError('Must specify name patterns to aggregate over.' +
+                             'Use TheLorax.set_name_patterns() first.')
         elif how not in ['features', 'patterns']:
-            raise ValueError('how must be one of features or patterns.')
+            raise ValueError('How must be one of features or patterns.')
 
         # score for this example for the positive class
-        # and threshold and 0.5 if pred_class is not given as an argument
+        # using threshold of 0.5 if pred_class is not given as an argument
         score = self.preds.loc[idx, 'pred']
         if pred_class is None:
             pred_class = int(score >= 0.5)
@@ -681,33 +589,40 @@ class TheLorax(object):
         if pred_class == 0:
             score = 1.0 - score
 
-        logging.info('using predicted class {} for example {}, score={}'.format(pred_class, idx, score))
+        logging.info('using predicted class {} for example {}, score={}'.format(pred_class,
+                                                                                idx,
+                                                                                score))
 
         # feature values for this example
         sample = self.X_test.loc[idx, ].values
 
-        # calculate the individual feature contributions
-        global_score_dict = self._build_global_dict(sample)
+        self.num_trees = self.rf.n_estimators
 
-        num_trees = self.rf.n_estimators
-        feature_dict = self._aggregate_feature_scores_across_trees(global_score_dict)
-        aggregated_dict = self._aggregate_scores(feature_dict, num_trees)
+        # calculate the individual feature contributions within each tree
+        self.global_score_dict = self._build_global_dict(sample)
 
-        mean_by_trees_list = [] # sum of diffs over total number of trees
+        # aggregate feature contributions across trees
+        self.feature_dict = self._aggregate_feature_scores_across_trees(self.global_score_dict)
 
-        for feat, dic in aggregated_dict.items():
-            mean_by_trees_list.append((feat, dic['diff_list']['mean_over_n_trees']))
-                
+        # further aggregation of feature contributions (mean, std, etc.)
+        self.aggregated_dict = self._aggregate_scores(self.feature_dict)
+
+        # we want features' mean_over_n_trees contributions
+        mean_by_trees_list = []
+        for feature, feature_dict in self.aggregated_dict.items():
+            mean_by_trees_list.append((feature, feature_dict['diff_list']['mean_over_n_trees']))
+
         # TODO: handle this more elegantly for multiclass problems
+        # We need to flip the sign of the scores.
         if pred_class == 0:
-            # We need to flip the sign of the scores.
             mean_by_trees_list = [(feature, score * -1) for feature, score in mean_by_trees_list]
 
         # sorting in descending order by contribution then by feature name in the case of ties
         mean_by_trees_list.sort(key=lambda x: (x[1] * -1, x[0]))
 
         # drop the results into a dataframe to append on other information
-        contrib_df = pd.DataFrame(mean_by_trees_list, columns=['feature', 'contribution'])
+        contrib_df = pd.DataFrame(mean_by_trees_list,
+                                  columns=['feature', 'contribution'])
         contrib_df.set_index('feature', inplace=True)
 
         # if we're using name patterns, aggregate columns to pattern level,
@@ -720,14 +635,18 @@ class TheLorax(object):
             # lookup the specific example's values
             for col in contrib_df.index.values:
                 contrib_df.loc[col, 'example_value'] = self.X_test.loc[idx, col]
-                contrib_df.loc[col, 'example_pctl'] = stats.percentileofscore(self.X_test[col], self.X_test.loc[idx, col])/100.0
-            contrib_df['z_score'] = 1.0*(contrib_df['example_value'] - contrib_df['mean'])/contrib_df['stdev']
+                vals, pct_sco = self.X_test[col], self.X_test.loc[idx, col]
+                contrib_df.loc[col, 'example_pctl'] = stats.percentileofscore(vals, pct_sco) / 100.0
+            contrib_df['z_score'] = 1.0 * (contrib_df['example_value'] - contrib_df['mean'])
+            contrib_df['z_score'] = contrib_df['z_score'] / contrib_df['stdev']
 
         # sort the resulting dataframe in descending order by contribution
         contrib_df.sort_values('contribution', ascending=False, inplace=True)
 
         if graph:
-            display(HTML('<h3>Explanations for example {} with predicted class={} (score for {}: {:.4f})</h3>'.format(idx, pred_class, pred_class, score)))
+            h3_str = '<h3>Explanations for example {} with predicted class={} ' +\
+                        '(score for {}: {:.4f})</h3>'
+            display(HTML(h3_str.format(idx, pred_class, pred_class, score)))
             # subset to top features then sort ascending (since first will be at bottom of plots)
             df_subset = contrib_df.head(num_features).sort_values('contribution')
             if how == 'features':
@@ -743,7 +662,7 @@ class TheLorax(object):
             return contrib_df
 
     def top_k_example_ids(self, k=10):
-        """Entities with the highest scores
+        """Entities with the highest scores.
 
         A quick helper function to get a list of the individuals with the highest scores
 
@@ -756,7 +675,7 @@ class TheLorax(object):
         return list(self.preds.sort_values('pred', ascending=False).head(k).index)
 
     def bottom_k_example_ids(self, k=10):
-        """Entities with the lowest scores
+        """Entities with the lowest scores.
 
         A quick helper function to get a list of the individuals with the lowest scores
 
@@ -769,7 +688,7 @@ class TheLorax(object):
         return list(self.preds.sort_values('pred').head(k).index)
 
     def speak_for_the_trees(self, id, pred_class=None, num_features=20, graph=True, how='features'):
-        """Explain an example's score
+        """Explain an example's score.
 
         This method is just a synonym for `explain_example()` because TheLorax has to be able
         to speak for the trees.
