@@ -249,9 +249,9 @@ class TheLorax(object):
             # Getting tree's values
             features = estimator.tree_.feature
             threshold = estimator.tree_.threshold
-            # If feature's value less or equal than threshold, go here.
+            # If feature's value <= threshold, go here
             children_left = estimator.tree_.children_left
-            # If feature's value higher than threshold, go here.
+            # If feature's value > threshold, go here
             children_right = estimator.tree_.children_right
             # 2d array of scores at each node/leaf.
             scores = estimator.tree_.value
@@ -350,6 +350,75 @@ class TheLorax(object):
                           }
 
         return diff_list_dict
+
+    def _plot_graph(self, idx, pred_class, score,
+                    num_features, contrib_df, how):
+        """
+        Plot feature importances.
+
+        In:
+            - idx: index for example
+            - pred_class: predicted class
+            - score: score for predicted class
+            - num_features: number of top features to show
+            - contrib_df: pandas DF with feature contributions
+            - how: (str) Whether to calculate feature contributions at
+                            the level of individual features
+        Out:
+            - plot
+        """
+        h3_str = '<h3>Explanations for example {} with predicted class={} ' +\
+                 '(score for {}: {:.4f})</h3>'
+        display(HTML(h3_str.format(idx, pred_class, pred_class, score)))
+        # subset to top features then sort ascending (since first will be at bottom of plots)
+        df_subset = contrib_df.head(num_features).sort_values('contribution')
+
+        if how == 'features':
+            fig, ax = plt.subplots(1, 2, figsize=(14, 4.8*num_features/5))
+            self._plot_contribs(df_subset, num_features, ax[0])
+            self._plot_dists(df_subset, num_features, ax[1])
+
+        elif how == 'patterns':
+            fig, ax = plt.subplots(1, 1, figsize=(7, 4.8*num_features/5))
+            self._plot_contribs(df_subset, num_features, ax, include_values=False)
+
+        plt.show()
+
+    def _build_contrib_df(self, mean_by_trees_list, idx, how):
+        """
+        Build contribution dataframe.
+
+        In:
+            - mean_by_trees_list (list):
+            - idx: index for example
+            - how: Whether to calculate feature contributions at
+                    the level of individual features
+        Out:
+            - contrib_df (pandas DF)
+        """
+        contrib_df = pd.DataFrame(mean_by_trees_list,
+                                  columns=['feature', 'contribution'])
+        contrib_df.set_index('feature', inplace=True)
+
+        # if we're using name patterns, aggregate columns to pattern level,
+        # otherwise, join on column-level statistics (not available for pattern-level)
+        if how == 'patterns':
+            contrib_df = contrib_df.join(self.column_patterns, how='inner')
+            contrib_df = contrib_df.groupby(['name_pattern'])['contribution'].sum().to_frame()
+        else:
+            contrib_df = contrib_df.join(self.feature_stats, how='inner')
+            # lookup the specific example's values
+            for col in contrib_df.index.values:
+                contrib_df.loc[col, 'example_value'] = self.X_test.loc[idx, col]
+                vals, pct_sco = self.X_test[col], self.X_test.loc[idx, col]
+                contrib_df.loc[col, 'example_pctl'] = stats.percentileofscore(vals, pct_sco) / 100.0
+            contrib_df['z_score'] = 1.0 * (contrib_df['example_value'] - contrib_df['mean'])
+            contrib_df['z_score'] = contrib_df['z_score'] / contrib_df['stdev']
+
+        # sort the resulting dataframe in descending order by contribution
+        contrib_df.sort_values('contribution', ascending=False, inplace=True)
+
+        return contrib_df
 
     def _aggregate_scores(self, feature_dict):
         """
@@ -585,14 +654,6 @@ class TheLorax(object):
         if pred_class is None:
             pred_class = int(score >= 0.5)
 
-        # use score for predicted class, so 1-score for class=0
-        if pred_class == 0:
-            score = 1.0 - score
-
-        logging.info('using predicted class {} for example {}, score={}'.format(pred_class,
-                                                                                idx,
-                                                                                score))
-
         # feature values for this example
         sample = self.X_test.loc[idx, ].values
 
@@ -615,49 +676,22 @@ class TheLorax(object):
         # TODO: handle this more elegantly for multiclass problems
         # We need to flip the sign of the scores.
         if pred_class == 0:
+            score = 1.0 - score
             mean_by_trees_list = [(feature, score * -1) for feature, score in mean_by_trees_list]
+
+        logging.info('Used predicted class {} for example {}, score={}'.format(pred_class,
+                                                                               idx,
+                                                                               score))
 
         # sorting in descending order by contribution then by feature name in the case of ties
         mean_by_trees_list.sort(key=lambda x: (x[1] * -1, x[0]))
 
         # drop the results into a dataframe to append on other information
-        contrib_df = pd.DataFrame(mean_by_trees_list,
-                                  columns=['feature', 'contribution'])
-        contrib_df.set_index('feature', inplace=True)
-
-        # if we're using name patterns, aggregate columns to pattern level,
-        # otherwise, join on column-level statistics (not available for pattern-level)
-        if how == 'patterns':
-            contrib_df = contrib_df.join(self.column_patterns, how='inner')
-            contrib_df = contrib_df.groupby(['name_pattern'])['contribution'].sum().to_frame()
-        else:
-            contrib_df = contrib_df.join(self.feature_stats, how='inner')
-            # lookup the specific example's values
-            for col in contrib_df.index.values:
-                contrib_df.loc[col, 'example_value'] = self.X_test.loc[idx, col]
-                vals, pct_sco = self.X_test[col], self.X_test.loc[idx, col]
-                contrib_df.loc[col, 'example_pctl'] = stats.percentileofscore(vals, pct_sco) / 100.0
-            contrib_df['z_score'] = 1.0 * (contrib_df['example_value'] - contrib_df['mean'])
-            contrib_df['z_score'] = contrib_df['z_score'] / contrib_df['stdev']
-
-        # sort the resulting dataframe in descending order by contribution
-        contrib_df.sort_values('contribution', ascending=False, inplace=True)
+        contrib_df = self._build_contrib_df(mean_by_trees_list, idx, how)
 
         if graph:
-            h3_str = '<h3>Explanations for example {} with predicted class={} ' +\
-                        '(score for {}: {:.4f})</h3>'
-            display(HTML(h3_str.format(idx, pred_class, pred_class, score)))
-            # subset to top features then sort ascending (since first will be at bottom of plots)
-            df_subset = contrib_df.head(num_features).sort_values('contribution')
-            if how == 'features':
-                fig, ax = plt.subplots(1, 2, figsize=(14, 4.8*num_features/5))
-                self._plot_contribs(df_subset, num_features, ax[0])
-                self._plot_dists(df_subset, num_features, ax[1])
-            elif how == 'patterns':
-                fig, ax = plt.subplots(1, 1, figsize=(7, 4.8*num_features/5))
-                self._plot_contribs(df_subset, num_features, ax, include_values=False)
-            plt.show()
-
+            self._plot_graph(idx, pred_class, score,
+                             num_features, contrib_df, how)
         else:
             return contrib_df
 
