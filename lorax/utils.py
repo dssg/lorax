@@ -137,3 +137,35 @@ def categorical_patterns_from_config(feature_config):
                 ))
 
     return name_patterns
+
+
+def add_overall_feature_importance(sample_importance, overall_importance):
+    """
+    Build new list to compare feature importance for sample and in overall model.
+
+    In:
+        - sample_importance: (list) of form
+            [('feature1', 'importance'), ('feature2', 'importance'))]
+        - overall_importance: (list) of form
+            [('feature1', 'importance'), ('feature2', 'importance'))]
+    Out:
+        - [('feature1', 'sample_rank',
+            'overall_imp', 'overall_rank', 'rank_change')]
+    """
+    updated_list = []
+    sorted_sample_importance = sorted(sample_importance, key=lambda x: x[1], reverse=True)
+    sorted_overall_importance = sorted(overall_importance, key=lambda x: x[1], reverse=True)
+
+    for sample_idx in range(len(sorted_sample_importance)):
+        feature, importance = sorted_sample_importance[sample_idx]
+
+        for overall_idx in range(len(sorted_overall_importance)):
+            overall_feature, overall_importance = sorted_overall_importance[overall_idx]
+
+            if feature == overall_feature:
+                updated_list.append((feature, sample_idx + 1,
+                                     overall_importance, overall_idx + 1,
+                                     overall_idx - sample_idx))
+                break
+
+    return updated_list

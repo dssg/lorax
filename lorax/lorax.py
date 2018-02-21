@@ -446,38 +446,6 @@ class TheLorax(object):
                                         "mean_diff_list": mean_diff_list_dict}
         return aggregated_dict
 
-    def _add_overall_feature_importance(self, sample_importance, overall_importance):
-        """
-        Build new list showing feature and its importances for a sample and in overall model.
-
-        In:
-            - sample_importance: (list) of form
-                [('feature1', 'importance'), ('feature2', 'importance'))]
-            - overall_importance: (list) of form
-                [('feature1', 'importance'), ('feature2', 'importance'))]
-        Out:
-            - [('feature1', 'sample_imp', 'sample_rank',
-                'overall_imp', 'overall_rank', 'rank_change')]
-        """
-        # TODO: add overall importances to output
-        updated_list = []
-        sorted_sample_importance = sorted(sample_importance, key=lambda x: x[1], reverse=True)
-        sorted_overall_importance = sorted(overall_importance, key=lambda x: x[1], reverse=True)
-
-        for sample_idx in range(len(sorted_sample_importance)):
-            feature, importance = sorted_sample_importance[sample_idx]
-
-            for overall_idx in range(len(sorted_overall_importance)):
-                overall_feature, overall_importance = sorted_overall_importance[overall_idx]
-
-                if feature == overall_feature:
-                    updated_list.append((feature, importance, sample_idx + 1,
-                                         overall_importance, overall_idx + 1,
-                                         overall_idx - sample_idx))
-                    break
-
-        return updated_list
-
     def _mean_of_feature_by_class(self, sample_id, feature_name, vectors, targets):
         """
         Get sample's value for feature, and mean of feature for class 0 and 1.
@@ -688,6 +656,18 @@ class TheLorax(object):
 
         # drop the results into a dataframe to append on other information
         contrib_df = self._build_contrib_df(mean_by_trees_list, idx, how)
+
+        # adding overall feature importance from model level
+        overall_importance = []
+        for i in range(len(self.column_names)):
+            overall_importance.append((self.column_names[i], self.rf.feature_importances_[i]))
+
+        updated_list = add_overall_feature_importance(mean_by_trees_list,
+                                                      overall_importance)
+        updated_columns = ['feature', 'sample_rank', 'overall_imp', 'overall_rank', 'rank_change']
+
+        contrib_df = contrib_df.join(pd.DataFrame(data=updated_list,
+                                                  columns=updated_columns).set_index('feature'))
 
         if graph:
             self._plot_graph(idx, pred_class, score,
