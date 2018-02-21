@@ -10,6 +10,7 @@ from sklearn import datasets
 from sklearn.ensemble import RandomForestClassifier
 
 from lorax import TheLorax
+from lorax.utils import add_overall_feature_importance
 
 random.seed(42)
 
@@ -108,6 +109,36 @@ class TestLorax(unittest.TestCase):
         # have more than one entry
         for tree_idx, feat_dict in lrx.global_score_dict.items():
             self.assertEqual(len(feat_dict), 1)
+
+    def test_add_overall_feature_importance(self):
+        """Test function to add overall feature importance."""
+        sample_importance = [('feature1', 0.2), ('feature2', 0.4)]
+        overall_importance = [('feature1', 0.6), ('feature2', 0.1)]
+
+        result = add_overall_feature_importance(sample_importance, overall_importance)
+        true_result = [('feature2', 1, 0.1, 2, 1),
+                       ('feature1', 2, 0.6, 1, -1)]
+
+        for i in range(len(true_result)):
+            self.assertTupleEqual(true_result[i], result[i])
+
+        n_estimators = 2
+        max_depth = 2
+
+        # Setting up classifier
+        clf = RandomForestClassifier(n_estimators=n_estimators,
+                                     max_depth=max_depth,
+                                     random_state=42).fit(X, y)
+
+        # Setting up lorax
+        lrx = TheLorax(clf, data, id_col='entity_id')
+        lrx_out = lrx.explain_example(idx=1, pred_class=1, graph=False)
+
+        feature1_overall_imp = clf.feature_importances_[0]
+
+        self.assertEqual(feature1_overall_imp, lrx_out.overall_imp.loc['feature1'])
+        self.assertEqual(lrx_out.overall_rank.loc['feature2'], 3)
+        self.assertEqual(lrx_out.rank_change.loc['feature5'], -2)
 
 
 if __name__ == "__main__":
