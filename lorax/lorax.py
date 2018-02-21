@@ -56,14 +56,22 @@ class TheLorax(object):
             - ...
         """
         self.rf = rf
+        self.combined_index = False
 
         df = test_mat.copy()
+
         if id_col is not None:
             # if ID isn't already the index
             df.set_index(id_col, inplace=True)
+            if type(id_col) in [list, tuple]:
+                self.combined_index = True
 
         # exclude non-feature columns (date, outcome if present)
-        drop_cols = [date_col]
+        if date_col in id_col:
+            drop_cols = []
+        else:
+            drop_cols = [date_col]
+
         if outcome_col is not None:
             drop_cols.append(outcome_col)
             self.y_test = df[outcome_col]
@@ -85,7 +93,7 @@ class TheLorax(object):
             index=self.X_test.index
             )
 
-        # pre-calcuate feature distribution statistics for the each feature
+        # pre-calcuate feature distribution statistics for each feature
         self._populate_feature_stats()
 
     def _populate_feature_stats(self):
@@ -98,14 +106,12 @@ class TheLorax(object):
         dtypes = self.X_test.dtypes
         for col in self.column_names:
             feat = self.X_test[col]
-            d = {
-                'feature': col,
-                'mean': feat.mean(),
-                'median': feat.median(),
-                'p5': feat.quantile(0.05),
-                'p95': feat.quantile(0.95),
-                'mean_pctl': stats.percentileofscore(feat, feat.mean())/100.0
-                }
+            d = {'feature': col,
+                 'mean': feat.mean(),
+                 'median': feat.median(),
+                 'p5': feat.quantile(0.05),
+                 'p95': feat.quantile(0.95),
+                 'mean_pctl': stats.percentileofscore(feat, feat.mean())/100.0}
             # TODO: Currently detect binary columns as integers with max value of 1, but
             # might be better to just check cardinality directly and not rely on datatype
             if dtypes[col] == 'int' and feat.max() == 1:
@@ -407,11 +413,19 @@ class TheLorax(object):
             contrib_df = contrib_df.groupby(['name_pattern'])['contribution'].sum().to_frame()
         else:
             contrib_df = contrib_df.join(self.feature_stats, how='inner')
+
             # lookup the specific example's values
             for col in contrib_df.index.values:
-                contrib_df.loc[col, 'example_value'] = self.X_test.loc[idx, col]
-                vals, pct_sco = self.X_test[col], self.X_test.loc[idx, col]
+
+                if self.combined_index:
+                    example_value = self.X_test.loc[idx, col].values[0]
+                else:
+                    example_value = self.X_test.loc[idx, col]
+                    
+                contrib_df.loc[col, 'example_value'] = example_value
+                vals, pct_sco = self.X_test[col], example_value
                 contrib_df.loc[col, 'example_pctl'] = stats.percentileofscore(vals, pct_sco) / 100.0
+
             contrib_df['z_score'] = 1.0 * (contrib_df['example_value'] - contrib_df['mean'])
             contrib_df['z_score'] = contrib_df['z_score'] / contrib_df['stdev']
 
@@ -616,6 +630,11 @@ class TheLorax(object):
         elif how not in ['features', 'patterns']:
             raise ValueError('How must be one of features or patterns.')
 
+        # If we have MultiIndex, we need to sort
+        if self.combined_index:
+            self.preds.sort_index(level=0, inplace=True)
+            self.X_test.sort_index(level=0, inplace=True)
+
         # score for this example for the positive class
         # using threshold of 0.5 if pred_class is not given as an argument
         score = self.preds.loc[idx, 'pred']
@@ -624,6 +643,8 @@ class TheLorax(object):
 
         # feature values for this example
         sample = self.X_test.loc[idx, ].values
+        if self.combined_index:
+            sample = sample[0]
 
         self.num_trees = self.rf.n_estimators
 

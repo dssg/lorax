@@ -33,22 +33,21 @@ columns = ["entity_id", "as_of_date", "feature1", "feature2",
 
 data = pd.DataFrame(data=data, columns=columns)
 
+n_estimators = 2
+max_depth = 2
+
+global_clf = RandomForestClassifier(n_estimators=n_estimators,
+                                    max_depth=max_depth,
+                                    random_state=42).fit(X, y)
+
 
 class TestLorax(unittest.TestCase):
     """Tests cases for Lorax."""
 
     def test_calculated_feature_importances(self):
         """Test calculated feature importances."""
-        n_estimators = 2
-        max_depth = 2
-
-        # Setting up classifier
-        clf = RandomForestClassifier(n_estimators=n_estimators,
-                                     max_depth=max_depth,
-                                     random_state=42).fit(X, y)
-
         # Setting up lorax
-        lrx = TheLorax(clf, data, id_col='entity_id')
+        lrx = TheLorax(global_clf, data, id_col='entity_id')
         lrx_out = lrx.explain_example(idx=1, pred_class=1, graph=False)
 
         feature1_contrib = lrx_out.contribution.loc['feature1']
@@ -122,23 +121,45 @@ class TestLorax(unittest.TestCase):
         for i in range(len(true_result)):
             self.assertTupleEqual(true_result[i], result[i])
 
-        n_estimators = 2
-        max_depth = 2
-
-        # Setting up classifier
-        clf = RandomForestClassifier(n_estimators=n_estimators,
-                                     max_depth=max_depth,
-                                     random_state=42).fit(X, y)
-
         # Setting up lorax
-        lrx = TheLorax(clf, data, id_col='entity_id')
+        lrx = TheLorax(global_clf, data, id_col='entity_id')
         lrx_out = lrx.explain_example(idx=1, pred_class=1, graph=False)
 
-        feature1_overall_imp = clf.feature_importances_[0]
+        feature1_overall_imp = global_clf.feature_importances_[0]
 
         self.assertEqual(feature1_overall_imp, lrx_out.overall_imp.loc['feature1'])
         self.assertEqual(lrx_out.overall_rank.loc['feature2'], 3)
         self.assertEqual(lrx_out.rank_change.loc['feature5'], -2)
+
+    def test_multiple_rows_per_entity_id(self):
+        """Test support of multiple rows per entity_id."""
+        # Setting up lorax
+        # Getting output on test matrix with one row per entity_id
+        lrx = TheLorax(global_clf, data, id_col='entity_id')
+        lrx_out = lrx.explain_example(idx=1, pred_class=1, graph=False)
+
+        # Changing test matrix so that the second row belongs
+        # to entity_id 1 as well
+        new_data = data.copy()
+        new_data.entity_id[new_data.entity_id == 2] = 1
+
+        # Checking that the output for original row of entity 1
+        # remains the same when using combined index
+        lrx = TheLorax(global_clf, new_data, id_col=['entity_id', 'as_of_date'])
+        out_multi_rows = lrx.explain_example(idx=(1, '2017-08-21 18:01:57.040781'),
+                                             pred_class=1,
+                                             graph=False)
+
+        self.assertTrue(lrx_out.equals(out_multi_rows))
+
+        # Checking that the output for new row of entity 1
+        # is not the same as the original one. It should not be
+        # because the output is calculated on a different row.
+        out_multi_rows_2nd_row = lrx.explain_example(idx=(1, '2017-01-10 02:29:38.247451'),
+                                                     pred_class=1,
+                                                     graph=False)
+
+        self.assertFalse(lrx_out.equals(out_multi_rows_2nd_row))
 
 
 if __name__ == "__main__":
