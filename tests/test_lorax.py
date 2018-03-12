@@ -8,6 +8,7 @@ from datetime import datetime
 
 from sklearn import datasets
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
 
 from lorax import TheLorax
 from lorax.utils import add_overall_feature_importance
@@ -79,6 +80,31 @@ class TestLorax(unittest.TestCase):
             split_occ = lrx.aggregated_dict[feature]['diff_list']['split_occurences']
             occ_trees = lrx.aggregated_dict[feature]['mean_diff_list']['occurences_in_n_trees']
             self.assertEqual(split_occ, occ_trees)
+
+    def test_logistic_regression_importances(self):
+        """Test feature contributions from logistic regression."""
+        # Setting up classifier
+        clf = LogisticRegression(C=1., solver='lbfgs')
+        clf.fit(X, y)
+
+        # Setting up lorax
+        lrx = TheLorax(clf, data, id_col='entity_id')
+        lrx_out = lrx.explain_example(idx=1, pred_class=1, graph=False)
+
+        feature1_contrib = lrx_out.contribution.loc['feature1']
+        feature5_contrib = lrx_out.contribution.loc['feature5']
+
+        # Test cases for correct feature importances
+        self.assertEqual(feature1_contrib, 2.186415806126551)
+        self.assertEqual(feature5_contrib, -3.228614405467005)
+
+        # Test case if we can recover lr prediction
+        # Can't use all of sample because it now contains intercept as last element
+        sample = lrx.X_test.loc[1, ].values[:-1]
+        lr_pred = clf.predict_proba(sample.reshape(1, -1))[0][1]
+        lrx_pred = 1 / (1 + np.exp(-lrx_out.contribution.sum()))
+
+        self.assertEqual(lrx_pred, lr_pred)
 
     def test_size_global_dict(self):
         """Test the size of the global dict."""

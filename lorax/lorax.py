@@ -1,13 +1,13 @@
 """Class for Lorax."""
 import re
 import logging
-import numpy as np
 import pandas as pd
 from math import sqrt
 from scipy import stats
 
 from lorax.utils import *
 from lorax.random_forest_functions import get_contrib_list_RF
+from lorax.logistic_regression_functions import get_contrib_list_LR
 
 from IPython.core.display import HTML, display
 
@@ -15,6 +15,7 @@ from matplotlib import pyplot as plt
 import matplotlib.patches as mpatches
 import matplotlib.lines as mlines
 
+from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
 
 
@@ -95,6 +96,10 @@ class TheLorax(object):
             {'pred': [p[1] for p in self.clf.predict_proba(self.X_test.values)]},
             index=self.X_test.index
             )
+
+        # For classifiers with intercepts, we add the intercept as a "feature"
+        if hasattr(self.clf, 'intercept_'):
+            self.X_test["Intercept"] = [self.clf.intercept_[0] for i in range(len(self.X_test))]
 
         # pre-calcuate feature distribution statistics for each feature
         self._populate_feature_stats()
@@ -233,7 +238,7 @@ class TheLorax(object):
             contrib_df = contrib_df.join(self.column_patterns, how='inner')
             contrib_df = contrib_df.groupby(['name_pattern'])['contribution'].sum().to_frame()
         else:
-            contrib_df = contrib_df.join(self.feature_stats, how='inner')
+            contrib_df = contrib_df.join(self.feature_stats, how='left')
 
             # lookup the specific example's values
             for col in contrib_df.index.values:
@@ -451,6 +456,10 @@ class TheLorax(object):
             self.aggregated_dict = return_tuple[3]
             contrib_list = return_tuple[4]
 
+        elif isinstance(self.clf, LogisticRegression):
+            # Getting values for Random Forest Classifier
+            contrib_list = get_contrib_list_LR(self.clf, sample, self.column_names)
+
         # TODO: handle this more elegantly for multiclass problems
         # We need to flip the sign of the scores.
         if pred_class == 0:
@@ -470,7 +479,10 @@ class TheLorax(object):
         # adding overall feature importance from model level
         overall_importance = []
         for i in range(len(self.column_names)):
-            overall_importance.append((self.column_names[i], self.clf.feature_importances_[i]))
+            if isinstance(self.clf, LogisticRegression):
+                overall_importance.append((self.column_names[i], self.clf.coef_[0][i]))
+            else:
+                overall_importance.append((self.column_names[i], self.clf.feature_importances_[i]))
 
         updated_list = add_overall_feature_importance(contrib_list,
                                                       overall_importance)
