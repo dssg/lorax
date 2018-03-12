@@ -182,7 +182,6 @@ def top_k_example_ids(preds, k=10):
     Returns:
         (list) Set of k entity ids with highest scores relative to the positive class
     """
-    # TODO: Handle ties better
     return list(preds.sort_values('pred', ascending=False).head(k).index)
 
 
@@ -197,5 +196,4 @@ def bottom_k_example_ids(preds, k=10):
     Returns:
         (list) Set of k entity ids with lowest scores relative to the positive class
     """
-    # TODO: Handle ties better
     return list(preds.sort_values('pred').head(k).index)
