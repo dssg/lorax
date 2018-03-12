@@ -1,19 +1,21 @@
 """Class for Lorax."""
+import re
+import logging
 import numpy as np
 import pandas as pd
 from math import sqrt
 from scipy import stats
 
 from lorax.utils import *
+from lorax.random_forest_functions import get_contrib_list_RF
 
-import re
-
-import logging
 from IPython.core.display import HTML, display
 
 from matplotlib import pyplot as plt
 import matplotlib.patches as mpatches
 import matplotlib.lines as mlines
+
+from sklearn.ensemble import RandomForestClassifier
 
 
 class TheLorax(object):
@@ -30,7 +32,8 @@ class TheLorax(object):
     with other types of models and problems (regression/multinomial classification)
 
     Args:
-        rf (sklearn.ensemble.RandomForestClassifier) The classifier to be explained
+        clf (sklearn classifier) The classifier to be explained, e.g.,
+            sklearn.ensemble.RandomForestClassifier
         test_mat (pandas.DataFrame) The test matrix containing all examples to be
             explained. If `id_col=None` (the default), the id for referencing entities
             must be set as this dataframe's index.
@@ -44,7 +47,7 @@ class TheLorax(object):
             each feature name in the test matrix must match one and only one pattern.
     """
 
-    def __init__(self, rf, test_mat, id_col=None,
+    def __init__(self, clf, test_mat, id_col=None,
                  date_col='as_of_date', outcome_col='outcome',
                  name_patterns=None):
         """
@@ -55,7 +58,7 @@ class TheLorax(object):
         Out:
             - ...
         """
-        self.rf = rf
+        self.clf = clf
         self.combined_index = False
 
         df = test_mat.copy()
@@ -89,7 +92,7 @@ class TheLorax(object):
 
         # predicted scores for the 1 class
         self.preds = pd.DataFrame(
-            {'pred': [p[1] for p in rf.predict_proba(self.X_test.values)]},
+            {'pred': [p[1] for p in self.clf.predict_proba(self.X_test.values)]},
             index=self.X_test.index
             )
 
@@ -128,10 +131,6 @@ class TheLorax(object):
 
         fstats.set_index('feature', inplace=True)
         self.feature_stats = fstats
-
-    def _get_score(self, scores, node_idx):
-        x, y = scores[node_idx][0]
-        return y / (x + y)
 
     def set_name_patterns(self, name_patterns):
         """Map regex patterns to column names.
@@ -178,184 +177,6 @@ class TheLorax(object):
         df.set_index('feature', inplace=True)
 
         self.column_patterns = df
-
-    def _get_dict_of_score_differences(self,
-                                       sample,
-                                       score_diff_dict,
-                                       previous_feature,
-                                       previous_score,
-                                       node_id,
-                                       feature,
-                                       threshold,
-                                       children_left,
-                                       children_right,
-                                       scores):
-        """
-        Get dictionary of score differences. Used to build global dict for feature importances.
-
-        In:
-            - score_diff_dict:
-            - scores:
-            - previous_feature:
-            - previous_score:
-            - node_id:
-            - feature: self.rf's array of features
-            - children_left: self.rf's array of left children
-            - children_right: self.rf's array of right children
-            - threshold: self.rf's array of thresholds at splits
-        Out:
-            -
-        """
-        current_score = self._get_score(scores, node_id)
-        current_score_diff = current_score - previous_score
-
-        if node_id != 0:  # we don't want to add 0 diff from first node.
-            if previous_feature in score_diff_dict:
-                score_diff_dict[previous_feature].append(current_score_diff)
-            else:
-                score_diff_dict[previous_feature] = [current_score_diff]
-        else:
-            logging.info("Node id is 0. We do NOT add score_diff.")
-
-        # now we need to find out if we have to go deeper
-        current_feature_idx = feature[node_id]
-        if current_feature_idx < 0:
-            # We arrived at a leaf.
-            return None
-        else:
-            current_feature = self.column_names[current_feature_idx]
-            current_feature_value = sample[current_feature_idx]
-
-            left_children_index = children_left[node_id]
-            right_children_index = children_right[node_id]
-
-            if current_feature_value <= threshold[node_id]:
-                next_node_id = left_children_index
-            else:
-                next_node_id = right_children_index
-
-        return score_diff_dict, current_feature, current_score, next_node_id
-
-    def _build_global_dict(self, sample):
-        """
-        Build global dict for feature importances.
-
-        In:
-            - sample: the sample for which we want to get feature importances.
-        Out:
-            - (dict) of form: {tree_index: {'feature_1':[0.1, 0.2], 'feature_2':[0.7]}}
-        """
-        global_score_dict = {}  # {tree_index: {'feature_1':[0.1, 0.2], 'feature_2':[0.7]}}
-
-        # loop through all trees
-        for idx, estimator in enumerate(self.rf.estimators_):
-            if ((idx + 1) % 100) == 0:
-                logging.info("Starting work on tree {}/{}".format(idx + 1, self.num_trees))
-
-            # Getting tree's values
-            features = estimator.tree_.feature
-            threshold = estimator.tree_.threshold
-            # If feature's value <= threshold, go here
-            children_left = estimator.tree_.children_left
-            # If feature's value > threshold, go here
-            children_right = estimator.tree_.children_right
-            # 2d array of scores at each node/leaf.
-            scores = estimator.tree_.value
-
-            # Initializing start values.
-            next_node_id = 0
-            current_feature = self.column_names[features[next_node_id]]
-            current_score = self._get_score(scores, next_node_id)
-            score_diff_dict = {}
-
-            need_to_continue = True
-            while need_to_continue:
-                result_tuple = self._get_dict_of_score_differences(sample,
-                                                                   score_diff_dict,
-                                                                   current_feature,
-                                                                   current_score,
-                                                                   next_node_id,
-                                                                   features,
-                                                                   threshold,
-                                                                   children_left,
-                                                                   children_right,
-                                                                   scores)
-                if result_tuple:
-                    score_diff_dict, current_feature, current_score, next_node_id = result_tuple
-                else:
-                    need_to_continue = False
-
-            global_score_dict[idx] = score_diff_dict
-
-        return global_score_dict
-
-    def _aggregate_feature_scores_across_trees(self, global_score_dict):
-        """
-        Do the first aggregation across trees.
-
-        You might want to consider following this function with aggregate_scores.
-        In:
-            - global_score_dict: (dict) of form
-                {tree_index: {'feature_1':[0.1, 0.2], 'feature_2':[0.7]}}
-        Out:
-            - feature_dict: (dict) of form
-                {'feature_1': ([0.1, 0.2, 0.3], [0.1, 0.25])}
-                where first list contains all score differences and
-                second list contains mean score differences within a tree.
-        """
-        feature_dict = {}
-
-        for tree_id, trees_dict in global_score_dict.items():
-
-            for feature, diff_list in trees_dict.items():
-
-                if feature in feature_dict:
-                    total_diff_list, mean_diff_list = feature_dict[feature]
-                    total_diff_list += diff_list
-                    mean_diff_list.append(np.array(diff_list).mean())
-                    feature_dict[feature] = (total_diff_list, mean_diff_list)
-
-                else:
-                    mean_diff_list = [np.array(diff_list).mean()]
-                    # we need a new copy of diff_list so that we don't
-                    # manipulate the diff_list of the global dict.
-                    # we achieve this by calling list(diff_list)
-                    feature_dict[feature] = (list(diff_list), mean_diff_list)
-
-        return feature_dict
-
-    def _get_descriptive_dict(self, input_array, mean_diff=False):
-        """
-        Get dict with descriptive statistics.
-
-        In:
-            - input_array: np array
-            - num_trees: (int) of number of trees
-            - mean_diff: (bool) whether or not input list is from mean_diff
-        Out:
-            - dict
-        """
-        mean = input_array.mean()
-        std = input_array.std()
-        max_value = input_array.max()
-        min_value = input_array.min()
-
-        if mean_diff:
-            occurence_string = "occurences_in_n_trees"
-        else:
-            occurence_string = "split_occurences"
-
-        diff_list_dict = {"input_list": input_array,
-                          "mean": mean,
-                          occurence_string: len(input_array),
-                          # sum of diffs over total number of trees
-                          "mean_over_n_trees": sum(input_array) / self.num_trees,
-                          "std": std,
-                          "max_value": max_value,
-                          "min_value": min_value
-                          }
-
-        return diff_list_dict
 
     def _plot_graph(self, idx, pred_class, score,
                     num_features, contrib_df, how):
@@ -421,7 +242,7 @@ class TheLorax(object):
                     example_value = self.X_test.loc[idx, col].values[0]
                 else:
                     example_value = self.X_test.loc[idx, col]
-                    
+
                 contrib_df.loc[col, 'example_value'] = example_value
                 vals, pct_sco = self.X_test[col], example_value
                 contrib_df.loc[col, 'example_pctl'] = stats.percentileofscore(vals, pct_sco) / 100.0
@@ -433,32 +254,6 @@ class TheLorax(object):
         contrib_df.sort_values('contribution', ascending=False, inplace=True)
 
         return contrib_df
-
-    def _aggregate_scores(self, feature_dict):
-        """
-        Aggregate scores for features.
-
-        In:
-            - feature_dict: (dict) of form
-            {'feature_1': ([0.1, 0.2, 0.3], [0.1, 0.25])}
-            where first list contains all score differences and
-            second list contains mean score differences within a tree.
-        Out:
-            - aggregated_dict: (dict) of form
-            ...
-        """
-        aggregated_dict = {}
-
-        for feature, diff_list_tuple in feature_dict.items():
-
-            diff_list, mean_diff_list = diff_list_tuple
-            diff_list_dict = self._get_descriptive_dict(np.array(diff_list))
-            mean_diff_list_dict = self._get_descriptive_dict(np.array(mean_diff_list),
-                                                             mean_diff=True)
-
-            aggregated_dict[feature] = {"diff_list": diff_list_dict,
-                                        "mean_diff_list": mean_diff_list_dict}
-        return aggregated_dict
 
     def _mean_of_feature_by_class(self, sample_id, feature_name, vectors, targets):
         """
@@ -646,44 +441,38 @@ class TheLorax(object):
         if self.combined_index:
             sample = sample[0]
 
-        self.num_trees = self.rf.n_estimators
+        if isinstance(self.clf, RandomForestClassifier):
+            # Getting values for Random Forest Classifier
+            return_tuple = get_contrib_list_RF(self.clf, sample, self.column_names)
 
-        # calculate the individual feature contributions within each tree
-        self.global_score_dict = self._build_global_dict(sample)
-
-        # aggregate feature contributions across trees
-        self.feature_dict = self._aggregate_feature_scores_across_trees(self.global_score_dict)
-
-        # further aggregation of feature contributions (mean, std, etc.)
-        self.aggregated_dict = self._aggregate_scores(self.feature_dict)
-
-        # we want features' mean_over_n_trees contributions
-        mean_by_trees_list = []
-        for feature, feature_dict in self.aggregated_dict.items():
-            mean_by_trees_list.append((feature, feature_dict['diff_list']['mean_over_n_trees']))
+            self.num_trees = return_tuple[0]
+            self.global_score_dict = return_tuple[1]
+            self.feature_dict = return_tuple[2]
+            self.aggregated_dict = return_tuple[3]
+            contrib_list = return_tuple[4]
 
         # TODO: handle this more elegantly for multiclass problems
         # We need to flip the sign of the scores.
         if pred_class == 0:
             score = 1.0 - score
-            mean_by_trees_list = [(feature, score * -1) for feature, score in mean_by_trees_list]
+            contrib_list = [(feature, score * -1) for feature, score in contrib_list]
 
         logging.info('Used predicted class {} for example {}, score={}'.format(pred_class,
                                                                                idx,
                                                                                score))
 
         # sorting in descending order by contribution then by feature name in the case of ties
-        mean_by_trees_list.sort(key=lambda x: (x[1] * -1, x[0]))
+        contrib_list.sort(key=lambda x: (x[1] * -1, x[0]))
 
         # drop the results into a dataframe to append on other information
-        contrib_df = self._build_contrib_df(mean_by_trees_list, idx, how)
+        contrib_df = self._build_contrib_df(contrib_list, idx, how)
 
         # adding overall feature importance from model level
         overall_importance = []
         for i in range(len(self.column_names)):
-            overall_importance.append((self.column_names[i], self.rf.feature_importances_[i]))
+            overall_importance.append((self.column_names[i], self.clf.feature_importances_[i]))
 
-        updated_list = add_overall_feature_importance(mean_by_trees_list,
+        updated_list = add_overall_feature_importance(contrib_list,
                                                       overall_importance)
         updated_columns = ['feature', 'sample_rank', 'overall_imp', 'overall_rank', 'rank_change']
 
@@ -695,32 +484,6 @@ class TheLorax(object):
                              num_features, contrib_df, how)
         else:
             return contrib_df
-
-    def top_k_example_ids(self, k=10):
-        """Entities with the highest scores.
-
-        A quick helper function to get a list of the individuals with the highest scores
-
-        Arguments:
-            k (int) How many examples to return
-        Returns:
-            (list) Set of k entity ids with highest scores relative to the positive class
-        """
-        # TODO: Handle ties better
-        return list(self.preds.sort_values('pred', ascending=False).head(k).index)
-
-    def bottom_k_example_ids(self, k=10):
-        """Entities with the lowest scores.
-
-        A quick helper function to get a list of the individuals with the lowest scores
-
-        Arguments:
-            k (int) How many examples to return
-        Returns:
-            (list) Set of k entity ids with lowest scores relative to the positive class
-        """
-        # TODO: Handle ties better
-        return list(self.preds.sort_values('pred').head(k).index)
 
     def speak_for_the_trees(self, id, pred_class=None, num_features=20, graph=True, how='features'):
         """Explain an example's score.

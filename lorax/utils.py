@@ -169,3 +169,33 @@ def add_overall_feature_importance(sample_importance, overall_importance):
                 break
 
     return updated_list
+
+
+def top_k_example_ids(preds, k=10):
+    """Entities with the highest scores.
+
+    A quick helper function to get a list of the individuals with the highest scores
+
+    Arguments:
+        - preds: pandas DF with predictions
+        - k (int) How many examples to return
+    Returns:
+        (list) Set of k entity ids with highest scores relative to the positive class
+    """
+    # TODO: Handle ties better
+    return list(preds.sort_values('pred', ascending=False).head(k).index)
+
+
+def bottom_k_example_ids(preds, k=10):
+    """Entities with the lowest scores.
+
+    A quick helper function to get a list of the individuals with the lowest scores
+
+    Arguments:
+        - preds: pandas DF with predictions
+        - k (int) How many examples to return
+    Returns:
+        (list) Set of k entity ids with lowest scores relative to the positive class
+    """
+    # TODO: Handle ties better
+    return list(preds.sort_values('pred').head(k).index)
