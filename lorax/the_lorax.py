@@ -54,7 +54,7 @@ class TheLorax(object):
         self.id_col = id_col
         self.date_col = date_col
 
-    def explain_example(self, sample, num_features=10, how='features', descriptive=False, test_mat=None, graph=False):
+    def explain_example_new(self, sample, num_features=10, how='features', descriptive=False, test_mat=None, graph=False):
         """Graph or return individual feature importances for an example.
 
         This method is the primary interface for TheLorax to calculate individual feature
@@ -444,7 +444,7 @@ class TheLorax(object):
         ax.set_facecolor('white')
         ax.set_title('Feature Distributions', fontsize=16)
 
-    def explain_example_old(self, idx, pred_class=None, num_features=10, graph=True, how='features'):
+    def explain_example(self, idx, pred_class=None, num_features=10, graph=True, how='features'):
         """Graph or return individual feature importances for an example.
 
         This method is the primary interface for TheLorax to calculate individual feature
@@ -569,4 +569,4 @@ class TheLorax(object):
         This method is just a synonym for `explain_example()` because TheLorax has to be able
         to speak for the trees.
         """
-        return self.explain_example_old(id, pred_class, num_features, graph, how)
+        return self.explain_example(id, pred_class, num_features, graph, how)
