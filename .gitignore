@@ -38,3 +38,6 @@ docs/_build
 # Virtualenvs
 env/
 venv/
+
+# VS code
+.vscode
