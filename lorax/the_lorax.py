@@ -48,54 +48,32 @@ class TheLorax(object):
             each feature name in the test matrix must match one and only one pattern.
     """
 
-    def __init__(self, clf, column_names, id_col=None, date_col=None):
+    def __init__(self, clf, column_names, column_patterns=None, id_col=None, date_col=None):
         self.clf = clf
         self.column_names = column_names
+        self.column_patterns = column_patterns
         self.id_col = id_col
         self.date_col = date_col
 
-    def explain_example_new(self, sample, num_features=10, how='features', descriptive=False, test_mat=None, graph=False):
-        """Graph or return individual feature importances for an example.
+    def explain_example_new(self, sample=None,
+                            pred_class=None,
+                            num_features=10, 
+                            how='features', 
+                            descriptive=False, test_mat=None, idx=None, graph=False):
 
-        This method is the primary interface for TheLorax to calculate individual feature
-        importances for a given example. 
-        It can be used to either return a pandas DataFrame with contributions and feature distributions (if
-        `graph=False`) or a graphical representation of the top `num_features` contributions
-        (if `graph=True`, the default) for use in a jupyter notebook.
+        # User has to pass either an index and a test_mat or a samples (a row)
+        if sample is None and test_mat is None and idx is None:
+            raise ValueError('Must either provide a data sample \
+                                or a test matrix with a sample index')
 
-        Feature contributions can be calucalted either for all features separately (`how='features',
-        the default) or using regular expression patterns to group sets of features together
-        (`how='patterns'`). When graphing contributions for all features, graphs will contain two
-        components:
-            1. A bar graph of the top num_features contributions to the example's score
-            2. For each of these features, a graph showing the percentile for the feature's mean
-               across the entire test set (gray dot), the percentile of the feature value for the
-               example being explained (orange dot) and the z-score for that value
-        When using regular expression patterns, the feature distribution information is omitted
-        (from both graphical and dataframe outputs) as the contributions reflect aggregations over
-        an arbitrary number and types of features.
+        if how == 'patterns' and self.column_patterns is None:
+            raise ValueError('Must specify name patterns to aggregate over.' +
+                             'Use TheLorax.set_name_patterns() first.')
+        elif how not in ['features', 'patterns']:
+            raise ValueError('How must be one of features or patterns.')
 
-        Arguments:
-            idx (int) The entity id of the example we want to explain
-            pred_class (int) The predicted class for the example (currently must be 1 or 0). The
-                returned feature contributions will be taken relative to the score for this class.
-                If None (the default), the predicted class will be assigned based on whether the
-                example's score is above or below a threshold of 0.5.
-            num_features (int) The number of features with the highest contributions to graph
-                (ignored if `graph=False` in which case the entire set will be returned)
-            graph (bool) Whether to graph the feature contributions or return a dataframe
-                without graphing (default: True)
-            how (str) Whether to calculate feature contributions at the level of individual features
-                (`how='features'`, the default) or using regex patterns (`how='patterns'`).
-                If using regex patterns, `name_patterns` must have been provided when the object
-                was constructed or through calling `set_name_patterns()`.
-
-        Returns:
-            If `graph=False`, returns a pandas dataframe with individual feature contributions
-            and (if using `how='features'`) feature distribution information
-
-        """
-
+               
+        # Calculating Feature contributions
         if isinstance(self.clf, RandomForestClassifier):
             # Getting values for Random Forest Classifier
             return_tuple = get_contrib_list_RF(self.clf, sample, self.column_names)
@@ -110,10 +88,35 @@ class TheLorax(object):
             # Getting values for Random Forest Classifier
             contrib_list = get_contrib_list_LR(self.clf, sample, self.column_names)
 
-        print(contrib_list)
+        # Setting the prediction class
+        if pred_class is None:
+            score = self.clf.predict_proba(sample.reshape(1, -1))
+            score = score[0][0]
+            pred_class = int(score >= 0.5)
 
+        # TODO: handle this more elegantly for multiclass problems
+        # We need to flip the sign of the scores.
+        if pred_class == 0:
+            score = 1.0 - score
+            contrib_list = [(feature, score * -1) for feature, score in contrib_list]   
 
+        # TODO: Need to be modified to not taking the index
+        # Replacing the example id with -1 for now
+        logging.info('Used predicted class {} for example {}, score={}'.format(pred_class,
+                                                                               -1,
+                                                                               score))
 
+        # sorting in descending order by contribution then by feature name in the case of ties
+        contrib_list.sort(key=lambda x: (x[1] * -1, x[0]))
+
+        self._build_contrib_df_sample(contrib_list, how=how)
+
+        # TODO: If descriptive is set, the importance scores
+        # are supplimented with the context provided by a test dataset
+        # The code is available in the original constructor, move it here
+        if descriptive:
+            pass
+   
     def old_init(self, clf, test_mat, id_col=None,
                  date_col='as_of_date', outcome_col='outcome',
                  name_patterns=None):
@@ -281,6 +284,17 @@ class TheLorax(object):
             self._plot_contribs(df_subset, num_features, ax, include_values=False)
 
         plt.show()
+
+    def _build_contrib_df_sample(self, mean_by_trees_list, how):
+        contrib_df = pd.DataFrame(mean_by_trees_list,
+                                  columns=['feature', 'contribution'])
+        contrib_df.set_index('feature', inplace=True)
+
+        # sort the resulting dataframe in descending order by contribution
+        contrib_df.sort_values('contribution', ascending=False, inplace=True)
+
+        return contrib_df
+
 
     def _build_contrib_df(self, mean_by_trees_list, idx, how):
         """
