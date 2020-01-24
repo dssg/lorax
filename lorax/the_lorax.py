@@ -48,12 +48,18 @@ class TheLorax(object):
             each feature name in the test matrix must match one and only one pattern.
     """
 
-    def __init__(self, clf, column_names, column_patterns=None, id_col=None, date_col=None):
+    def __init__(self, clf, column_names, column_patterns=None, id_col=None, date_col=None, outcome_col='outcome'):
         self.clf = clf
+
+        # NOTE: Minor. maybe this should be feature_names
         self.column_names = column_names
         self.column_patterns = column_patterns
         self.id_col = id_col
         self.date_col = date_col
+
+        self.combined_index = False
+        if type(id_col) in [list, tuple]:
+            self.combined_index = True
 
     def explain_example_new(self, sample=None,
                             pred_class=None,
@@ -65,6 +71,10 @@ class TheLorax(object):
         if sample is None and test_mat is None and idx is None:
             raise ValueError('Must either provide a data sample \
                                 or a test matrix with a sample index')
+        
+        # A test matrix is necessary for getting descriptive stats
+        if descriptive and test_mat is None:
+            raise ValueError('Sould provide a test dataset for descriptive')
 
         if how == 'patterns' and self.column_patterns is None:
             raise ValueError('Must specify name patterns to aggregate over.' +
@@ -72,7 +82,11 @@ class TheLorax(object):
         elif how not in ['features', 'patterns']:
             raise ValueError('How must be one of features or patterns.')
 
-               
+        # TODO: Add error handling for sample's features and the data features.
+        
+        if sample is None:
+            sample = test_mat.loc[idx].values
+        
         # Calculating Feature contributions
         if isinstance(self.clf, RandomForestClassifier):
             # Getting values for Random Forest Classifier
@@ -103,8 +117,8 @@ class TheLorax(object):
         # TODO: Need to be modified to not taking the index
         # Replacing the example id with -1 for now
         logging.info('Used predicted class {} for example {}, score={}'.format(pred_class,
-                                                                               -1,
-                                                                               score))
+                                                                            -1,
+                                                                            score))
 
         # sorting in descending order by contribution then by feature name in the case of ties
         contrib_list.sort(key=lambda x: (x[1] * -1, x[0]))
@@ -112,10 +126,11 @@ class TheLorax(object):
         self._build_contrib_df_sample(contrib_list, how=how)
 
         # TODO: If descriptive is set, the importance scores
-        # are supplimented with the context provided by a test dataset
+        # are supported with the context provided by a test dataset
         # The code is available in the original constructor, move it here
         if descriptive:
             pass
+
    
     def old_init(self, clf, test_mat, id_col=None,
                  date_col='as_of_date', outcome_col='outcome',
