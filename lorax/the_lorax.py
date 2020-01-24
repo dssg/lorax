@@ -168,13 +168,16 @@ class TheLorax(object):
             contrib_df = self._build_contrib_df(contrib_list, idx=idx, how=how)
 
             if graph:
+                # NOTE-KA: num features seem to be a unnecessary dependency. 
+                # Defaulting to 10 in the function signature is less general. 
+                # For now adding a error check, if passed value > # features in the df, will plot all values
+                # But, I feel like it should be handled more elegantly
+                num_features = min(num_features, contrib_df.shape[0]) 
                 self._plot_graph(idx, pred_class, score,
                                 num_features, contrib_df, how)
 
         else:
             contrib_df = self._build_contrib_df_sample(contrib_list, how=how)
-
-        
         
         return contrib_df
 
