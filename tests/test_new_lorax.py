@@ -61,7 +61,7 @@ class TestLorax(unittest.TestCase):
         # without id_col (zero indexed)
         # lrx_out = lrx.explain_example_new(test_mat=data, idx=0, pred_class=1, graph=False)
 
-        sample = data.loc[0]
+        sample = data.loc[0].values
         lrx_out = lrx.explain_example_new(
             sample=sample, 
             test_mat=data, 
