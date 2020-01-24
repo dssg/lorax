@@ -35,6 +35,10 @@ columns = ["entity_id", "as_of_date", "feature1", "feature2",
 
 data = pd.DataFrame(data, columns=columns)
 
+# Testing the independence from id_col, date_col, outcome
+data = data.drop(['entity_id', 'as_of_date', 'outcome'], axis=1)
+
+
 n_estimators = 2
 max_depth = 2
 global_clf = RandomForestClassifier(n_estimators=n_estimators,
@@ -50,10 +54,23 @@ class TestLorax(unittest.TestCase):
         lrx = TheLorax(
             global_clf, 
             column_names=columns,
-            id_col='entity_id',
-            date_col='as_of_date', 
-            outcome_col='outcome')
-        lrx_out = lrx.explain_example_new(test_mat=data, idx=1, pred_class=1, graph=False)
+            id_col=None,
+            date_col=None, 
+            outcome_col=None)
+
+        # without id_col (zero indexed)
+        # lrx_out = lrx.explain_example_new(test_mat=data, idx=0, pred_class=1, graph=False)
+
+        sample = data.loc[0]
+        lrx_out = lrx.explain_example_new(
+            sample=sample, 
+            test_mat=data, 
+            idx=None, 
+            pred_class=None, 
+            graph=False)
+
+
+        print(lrx_out)
 
         feature1_contrib = lrx_out.contribution.loc['feature1']
         feature5_contrib = lrx_out.contribution.loc['feature5']
