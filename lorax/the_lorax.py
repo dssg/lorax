@@ -63,11 +63,8 @@ class TheLorax(object):
         self.outcome_col = outcome_col
 
         self.drop_cols = []
-        if date_col is not None:
-            if date_col not in id_col:
-                self.drop_cols = []
-            else:
-                self.drop_cols = [date_col]
+        if date_col is not None and date_col not in id_col:
+                self.drop_cols.append(date_col)
 
         if outcome_col is not None:
             self.drop_cols.append(outcome_col)
@@ -105,6 +102,18 @@ class TheLorax(object):
 
         # TODO: Add error handling for sample's features and the data features.
         
+        #checking for validity in the test data format
+        if test_mat is not None:
+            print(self.drop_cols)
+            cols = list(test_mat.columns)
+            
+            # Removing the columns that need to be dropped
+            # NOTE-KA: Similar to the comment in the constructor, I think this should be handled outside of Lorax
+            for dr_col in self.drop_cols:
+                if dr_col in cols:
+                    test_mat = test_mat.drop(dr_col, axis=1)
+
+
         if sample is None:
             sample = test_mat.loc[idx].values
         
@@ -124,10 +133,9 @@ class TheLorax(object):
             contrib_list = get_contrib_list_LR(self.clf, sample, self.column_names)
 
         # Setting the prediction class
+        score = self.clf.predict_proba(sample.reshape(1, -1))
+        score = score[0][0]
         if pred_class is None:
-            score = self.clf.predict_proba(sample.reshape(1, -1))
-            score = score[0][0]
-
             # TODO: Multiclass adpatation
             pred_class = int(score >= 0.5)
 
@@ -149,15 +157,7 @@ class TheLorax(object):
         # TODO: If descriptive is set, the importance scores
         # are supported with the context provided by a test dataset
         # The code is available in the original constructor, move it here
-        if descriptive:
-            cols = list(test_mat.columns)
-            
-            # Removing the columns that need to be dropped
-            # NOTE-KA: Similar to the comment in the constructor, I think this should be handled outside of Lorax
-            for dr_col in self.drop_cols:
-                if dr_col in cols:
-                    test_mat = test_mat.drop(dr_col, axis=1)
-            
+        if descriptive:           
             
             self.X_test = test_mat
 
@@ -169,7 +169,7 @@ class TheLorax(object):
             contrib_df = self._build_contrib_df_sample(contrib_list, how=how)
 
         return contrib_df
-        
+
    
     def old_init(self, clf, test_mat, id_col=None,
                  date_col='as_of_date', outcome_col='outcome',
