@@ -48,7 +48,7 @@ class TheLorax(object):
             each feature name in the test matrix must match one and only one pattern.
     """
 
-    def __init__(self, clf, column_names, column_patterns=None, id_col=None, date_col=None, outcome_col='outcome'):
+    def __init__(self, clf, column_names, column_patterns=None, id_col=None, date_col=None, outcome_col=None):
         self.clf = clf
 
         # NOTE: Minor. maybe this should be feature_names and feature_patterns 
@@ -60,6 +60,7 @@ class TheLorax(object):
         # We can always have a script that bridges the triage data with the explain API
         self.id_col = id_col
         self.date_col = date_col
+        self.outcome_col = outcome_col
 
         self.drop_cols = []
         if date_col is not None:
@@ -167,9 +168,8 @@ class TheLorax(object):
         else:
             contrib_df = self._build_contrib_df_sample(contrib_list, how=how)
 
-        print(contrib_df.head())
-
-
+        return contrib_df
+        
    
     def old_init(self, clf, test_mat, id_col=None,
                  date_col='as_of_date', outcome_col='outcome',
