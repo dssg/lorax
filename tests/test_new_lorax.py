@@ -5,46 +5,65 @@ sys.path.append(project_path)
 
 import pandas as pd
 import numpy as np
-
+import random
+from datetime import datetime
+from sklearn import datasets
 from sklearn.datasets import load_breast_cancer
 from sklearn.ensemble import RandomForestClassifier
 
 from lorax.the_lorax import TheLorax
 from lorax.utils import add_overall_feature_importance
 
+import unittest
 
-def test_lorax_breast_cancer():
-    data_dict = load_breast_cancer()
-    X = data_dict['data']
-    y = data_dict['target']
+# Data generation for classification
+X, y = datasets.make_classification(n_samples=10000, n_features=5,
+                                    n_informative=3, n_redundant=2,
+                                    random_state=42)
 
-    columns = data_dict['feature_names']
+# Preparing test matrix
+start, end = datetime(2017, 1, 1), datetime(2017, 12, 31)
+as_of_dates = np.asarray([start + (end - start) * random.random() for i in range(X.shape[0])])
+entity_ids = np.arange(1, X.shape[0] + 1)
 
-    data = pd.DataFrame(X, columns=columns)
+data = np.append(X, y.reshape(y.shape[0], 1), axis=1)
+data = np.append(as_of_dates.reshape(y.shape[0], 1), data, axis=1)
+data = np.append(entity_ids.reshape(y.shape[0], 1), data, axis=1)
 
-    # model
-    n_estimators = 2
-    max_depth = 2
+columns = ["entity_id", "as_of_date", "feature1", "feature2",
+           "feature3", "feature4", "feature5", "outcome"]
 
-    global_clf = RandomForestClassifier(n_estimators=n_estimators,
-                                        max_depth=max_depth,
-                                        random_state=42).fit(X, y)
+data = pd.DataFrame(data, columns=columns)
 
-    # Lorax
-    lrx = TheLorax(
-        clf=global_clf, 
-        column_names=columns,
-        id_col=None, date_col=None)
+n_estimators = 2
+max_depth = 2
+global_clf = RandomForestClassifier(n_estimators=n_estimators,
+                                    max_depth=max_depth,
+                                    random_state=42).fit(X, y)
 
-    sample = X[0, :]
+class TestLorax(unittest.TestCase):
+    """Tests cases for Lorax."""
 
-    lrx.explain_example_new(sample=None, 
-                            descriptive=True, 
-                            test_mat=data, idx=1)
+    def test_calculated_feature_importances(self):
+        """Test calculated feature importances."""
+        # Setting up lorax
+        lrx = TheLorax(
+            global_clf, 
+            column_names=columns,
+            id_col='entity_id',
+            date_col='as_of_date', 
+            outcome_col='outcome')
+        lrx_out = lrx.explain_example_new(test_mat=data, idx=1, pred_class=1, graph=False)
 
-def scrap_code():
-    pass
+        feature1_contrib = lrx_out.contribution.loc['feature1']
+        feature5_contrib = lrx_out.contribution.loc['feature5']
+
+        # Test cases for correct feature importances
+        self.assertEqual(feature1_contrib, 0.04889021376498209)
+        self.assertEqual(feature5_contrib, -0.31556073962118303)
+        self.assertFalse('feature3' in lrx_out.contribution)
 
 
 if __name__ == '__main__':
-    test_lorax_breast_cancer()
+    # test_lorax_breast_cancer()
+    unittest.main()
