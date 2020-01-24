@@ -122,7 +122,6 @@ class TheLorax(object):
         if isinstance(self.clf, RandomForestClassifier):
             # Getting values for Random Forest Classifier
             return_tuple = get_contrib_list_RF(self.clf, sample, test_mat.columns.values)
-
             num_trees = return_tuple[0]
             global_score_dict = return_tuple[1]
             feature_dict = return_tuple[2]
@@ -137,8 +136,10 @@ class TheLorax(object):
         # Setting the prediction class
         score = self.clf.predict_proba(sample.reshape(1, -1))
         score = score[0][0]
+
         if pred_class is None:
             # TODO: Multiclass adpatation
+            # use np.argmax(), or clf.predict()
             pred_class = int(score >= 0.5)
 
         # TODO: handle this more elegantly for multiclass problems
