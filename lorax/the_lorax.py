@@ -104,7 +104,6 @@ class TheLorax(object):
         
         #checking for validity in the test data format
         if test_mat is not None:
-            print(self.drop_cols)
             cols = list(test_mat.columns)
             
             # Removing the columns that need to be dropped
@@ -113,6 +112,8 @@ class TheLorax(object):
                 if dr_col in cols:
                     test_mat = test_mat.drop(dr_col, axis=1)
 
+            if self.id_col is not None:
+                test_mat.set_index(self.id_col, inplace=True)
 
         if sample is None:
             sample = test_mat.loc[idx].values
@@ -158,7 +159,6 @@ class TheLorax(object):
         # are supported with the context provided by a test dataset
         # The code is available in the original constructor, move it here
         if descriptive:           
-            
             self.X_test = test_mat
 
             # NOTE-KA: I think this method should take in the test dataset as an argument
