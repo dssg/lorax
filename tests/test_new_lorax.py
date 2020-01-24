@@ -40,5 +40,9 @@ def test_lorax_breast_cancer():
 
     lrx.explain_example_new(sample=sample)
 
+def scrap_code():
+    pass
+
+
 if __name__ == '__main__':
     test_lorax_breast_cancer()
