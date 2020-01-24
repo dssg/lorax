@@ -27,8 +27,8 @@ def test_lorax_breast_cancer():
     max_depth = 2
 
     global_clf = RandomForestClassifier(n_estimators=n_estimators,
-                                    max_depth=max_depth,
-                                    random_state=42).fit(X, y)
+                                        max_depth=max_depth,
+                                        random_state=42).fit(X, y)
 
     # Lorax
     lrx = TheLorax(
@@ -38,7 +38,9 @@ def test_lorax_breast_cancer():
 
     sample = X[0, :]
 
-    lrx.explain_example_new(sample=sample)
+    lrx.explain_example_new(sample=None, 
+                            descriptive=True, 
+                            test_mat=data, idx=1)
 
 def scrap_code():
     pass
