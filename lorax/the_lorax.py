@@ -51,15 +51,35 @@ class TheLorax(object):
     def __init__(self, clf, column_names, column_patterns=None, id_col=None, date_col=None, outcome_col='outcome'):
         self.clf = clf
 
-        # NOTE: Minor. maybe this should be feature_names
+        # NOTE: Minor. maybe this should be feature_names and feature_patterns 
+        # To separate from the index and the outcome
         self.column_names = column_names
         self.column_patterns = column_patterns
+        
+        # NOTE-KA: I feel like the method should be independent of these as these seem very triage specific. 
+        # We can always have a script that bridges the triage data with the explain API
         self.id_col = id_col
         self.date_col = date_col
 
+        self.drop_cols = []
+        if date_col is not None:
+            if date_col not in id_col:
+                self.drop_cols = []
+            else:
+                self.drop_cols = [date_col]
+
+        if outcome_col is not None:
+            self.drop_cols.append(outcome_col)
+
         self.combined_index = False
-        if type(id_col) in [list, tuple]:
-            self.combined_index = True
+        if id_col is not None:
+            if type(id_col) in [list, tuple]:
+                self.combined_index = True
+
+        # TODO: These should be moved out from the constructor. 
+        # Current version of the code depends on their existence
+        self.X_test = None
+        self.feature_stats = None
 
     def explain_example_new(self, sample=None,
                             pred_class=None,
@@ -106,6 +126,8 @@ class TheLorax(object):
         if pred_class is None:
             score = self.clf.predict_proba(sample.reshape(1, -1))
             score = score[0][0]
+
+            # TODO: Multiclass adpatation
             pred_class = int(score >= 0.5)
 
         # TODO: handle this more elegantly for multiclass problems
@@ -123,13 +145,30 @@ class TheLorax(object):
         # sorting in descending order by contribution then by feature name in the case of ties
         contrib_list.sort(key=lambda x: (x[1] * -1, x[0]))
 
-        self._build_contrib_df_sample(contrib_list, how=how)
-
         # TODO: If descriptive is set, the importance scores
         # are supported with the context provided by a test dataset
         # The code is available in the original constructor, move it here
         if descriptive:
-            pass
+            cols = list(test_mat.columns)
+            
+            # Removing the columns that need to be dropped
+            # NOTE-KA: Similar to the comment in the constructor, I think this should be handled outside of Lorax
+            for dr_col in self.drop_cols:
+                if dr_col in cols:
+                    test_mat = test_mat.drop(dr_col, axis=1)
+            
+            
+            self.X_test = test_mat
+
+            # NOTE-KA: I think this method should take in the test dataset as an argument
+            self._populate_feature_stats()
+            contrib_df = self._build_contrib_df(contrib_list, idx=idx, how=how)
+
+        else:
+            contrib_df = self._build_contrib_df_sample(contrib_list, how=how)
+
+        print(contrib_df.head())
+
 
    
     def old_init(self, clf, test_mat, id_col=None,
