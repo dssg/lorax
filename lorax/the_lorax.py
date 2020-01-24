@@ -134,7 +134,7 @@ class TheLorax(object):
             contrib_list = get_contrib_list_LR(self.clf, sample, test_mat.columns.values)
 
         # Setting the prediction class
-        score = self.clf.predict_proba(sample.values.reshape(1, -1))
+        score = self.clf.predict_proba(sample.reshape(1, -1))
         score = score[0][0]
 
         if pred_class is None:
