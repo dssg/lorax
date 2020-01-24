@@ -159,16 +159,23 @@ class TheLorax(object):
         # TODO: If descriptive is set, the importance scores
         # are supported with the context provided by a test dataset
         # The code is available in the original constructor, move it here
-        if descriptive:           
+        if descriptive:  
+            # If descriptive, it rolls back to the original case         
             self.X_test = test_mat
 
             # NOTE-KA: I think this method should take in the test dataset as an argument
             self._populate_feature_stats()
             contrib_df = self._build_contrib_df(contrib_list, idx=idx, how=how)
 
+            if graph:
+                self._plot_graph(idx, pred_class, score,
+                                num_features, contrib_df, how)
+
         else:
             contrib_df = self._build_contrib_df_sample(contrib_list, how=how)
 
+        
+        
         return contrib_df
 
    
