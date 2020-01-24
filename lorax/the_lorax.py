@@ -86,13 +86,12 @@ class TheLorax(object):
                             descriptive=False, test_mat=None, idx=None, graph=False):
 
         # User has to pass either an index and a test_mat or a samples (a row)
-        if sample is None and test_mat is None and idx is None:
-            raise ValueError('Must either provide a data sample \
-                                or a test matrix with a sample index')
+        if sample is None and (test_mat is None or idx is None):
+            raise ValueError('Must either provide a data sample or a test matrix with a sample index')
         
         # A test matrix is necessary for getting descriptive stats
-        if descriptive and test_mat is None:
-            raise ValueError('Sould provide a test dataset for descriptive')
+        if descriptive and (test_mat is None or idx is None):
+            raise ValueError('Sould provide a test dataset and a sample index for descriptive')
 
         if how == 'patterns' and self.column_patterns is None:
             raise ValueError('Must specify name patterns to aggregate over.' +
@@ -115,8 +114,8 @@ class TheLorax(object):
             if self.id_col is not None:
                 test_mat.set_index(self.id_col, inplace=True)
 
-        if sample is None:
-            sample = test_mat.loc[idx].values
+            if idx is not None:
+                sample = test_mat.loc[idx].values
         
         # Calculating Feature contributions
         if isinstance(self.clf, RandomForestClassifier):
@@ -378,7 +377,7 @@ class TheLorax(object):
 
             # lookup the specific example's values
             for col in contrib_df.index.values:
-
+                # NOTE-KA: This way, the sample has to be an element of the test dataset
                 if self.combined_index:
                     example_value = self.X_test.loc[idx, col].values[0]
                 else:
