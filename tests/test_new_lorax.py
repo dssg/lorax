@@ -53,7 +53,7 @@ class TestLorax(unittest.TestCase):
         # Setting up lorax
         lrx = TheLorax(
             global_clf, 
-            column_names=columns,
+            column_names=data.columns.values,
             id_col=None,
             date_col=None, 
             outcome_col=None)
@@ -63,11 +63,13 @@ class TestLorax(unittest.TestCase):
 
         sample = data.loc[0].values
         lrx_out = lrx.explain_example_new(
-            sample=sample, 
+            sample=None, 
             test_mat=data, 
-            idx=None, 
-            pred_class=None, 
-            graph=False)
+            descriptive=True,
+            idx=0, 
+            pred_class=1,
+            num_features=10, 
+            graph=True)
 
 
         print(lrx_out)
