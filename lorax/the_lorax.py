@@ -102,7 +102,7 @@ class TheLorax(object):
 
         # TODO: Add error handling for sample's features and the data features.
         
-        #checking for validity in the test data format
+        # Formatting the test data matrix by setting appropriate index and removing non-feature coulmns
         if test_mat is not None:
             cols = list(test_mat.columns)
             
@@ -121,7 +121,7 @@ class TheLorax(object):
         # Calculating Feature contributions
         if isinstance(self.clf, RandomForestClassifier):
             # Getting values for Random Forest Classifier
-            return_tuple = get_contrib_list_RF(self.clf, sample, self.column_names)
+            return_tuple = get_contrib_list_RF(self.clf, sample, test_mat.columns.values)
 
             num_trees = return_tuple[0]
             global_score_dict = return_tuple[1]
@@ -131,7 +131,8 @@ class TheLorax(object):
         
         elif isinstance(self.clf, LogisticRegression):
             # Getting values for Random Forest Classifier
-            contrib_list = get_contrib_list_LR(self.clf, sample, self.column_names)
+            # TODO: The column names need to be consolidated
+            contrib_list = get_contrib_list_LR(self.clf, sample, test_mat.columns.values)
 
         # Setting the prediction class
         score = self.clf.predict_proba(sample.reshape(1, -1))
