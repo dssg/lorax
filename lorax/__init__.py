@@ -1,3 +1,3 @@
 """Main application."""
 
-from .the_lorax import TheLorax
+from .lorax import TheLorax
