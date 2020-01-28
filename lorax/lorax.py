@@ -120,7 +120,7 @@ class TheLorax(object):
         # Calculating Feature contributions
         if isinstance(self.clf, RandomForestClassifier):
             # Getting values for Random Forest Classifier
-            return_tuple = get_contrib_list_RF(self.clf, sample, test_mat.columns.values)
+            return_tuple = get_contrib_list_RF(self.clf, sample, self.column_names)
             num_trees = return_tuple[0]
             global_score_dict = return_tuple[1]
             feature_dict = return_tuple[2]
@@ -130,7 +130,7 @@ class TheLorax(object):
         elif isinstance(self.clf, LogisticRegression):
             # Getting values for Random Forest Classifier
             # TODO: The column names need to be consolidated
-            contrib_list = get_contrib_list_LR(self.clf, sample, test_mat.columns.values)
+            contrib_list = get_contrib_list_LR(self.clf, sample, self.column_names)
 
         # Setting the prediction class
         score = self.clf.predict_proba(sample.reshape(1, -1))
