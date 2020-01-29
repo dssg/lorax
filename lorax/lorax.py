@@ -100,7 +100,9 @@ class TheLorax(object):
             raise ValueError('How must be one of features or patterns.')
 
         # TODO: Add error handling for sample's features and the data features.
-        
+        if isinstance(sample, pd.Series):
+            sample = sample.values
+
         # Formatting the test data matrix by setting appropriate index and removing non-feature coulmns
         if test_mat is not None:
             cols = list(test_mat.columns)
