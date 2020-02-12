@@ -83,6 +83,7 @@ class TestLorax(unittest.TestCase):
         self.assertFalse('feature3' in lrx_out.contribution)
 
 def test_scores_lorax():
+    """New test to check the importance scores and their signs (+) or (-)"""
     lrx = TheLorax(
             global_clf, 
             column_names=data.columns.values,
