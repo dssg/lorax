@@ -2,6 +2,7 @@
 import re
 import logging
 import pandas as pd
+import numpy as np
 from math import sqrt
 from scipy import stats
 
@@ -135,13 +136,17 @@ class TheLorax(object):
             contrib_list = get_contrib_list_LR(self.clf, sample, self.column_names)
 
         # Setting the prediction class
-        score = self.clf.predict_proba(sample.reshape(1, -1))
-        score = score[0][0]
+        # predict proba returns a 2D array
+        scores = self.clf.predict_proba(sample.reshape(1, -1))[0]  
 
         if pred_class is None:
             # TODO: Multiclass adpatation
             # use np.argmax(), or clf.predict()
-            pred_class = int(score >= 0.5)
+            pred_class = np.argmax(scores)
+
+        # Prediction score for the given pred_class
+        score = scores[pred_class]
+        print(pred_class, score)
 
         # TODO: handle this more elegantly for multiclass problems
         # We need to flip the sign of the scores.
@@ -650,4 +655,5 @@ class TheLorax(object):
         This method is just a synonym for `explain_example()` because TheLorax has to be able
         to speak for the trees.
         """
+        # TODO: Make sure this is adapted to the new method
         return self.explain_example(id, pred_class, num_features, graph, how)
