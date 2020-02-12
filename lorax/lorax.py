@@ -146,8 +146,7 @@ class TheLorax(object):
 
         # Prediction score for the given pred_class
         score = scores[pred_class]
-        print(pred_class, score)
-
+        
         # TODO: handle this more elegantly for multiclass problems
         # We need to flip the sign of the scores.
         if pred_class == 0:
