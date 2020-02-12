@@ -11,7 +11,7 @@ from sklearn import datasets
 from sklearn.datasets import load_breast_cancer
 from sklearn.ensemble import RandomForestClassifier
 
-from lorax.the_lorax import TheLorax
+from lorax.lorax import TheLorax
 from lorax.utils import add_overall_feature_importance
 
 import unittest
@@ -82,7 +82,36 @@ class TestLorax(unittest.TestCase):
         self.assertEqual(feature5_contrib, -0.31556073962118303)
         self.assertFalse('feature3' in lrx_out.contribution)
 
+def test_scores_lorax():
+    lrx = TheLorax(
+            global_clf, 
+            column_names=data.columns.values,
+            id_col=None,
+            date_col=None, 
+            outcome_col=None)
+
+        # without id_col (zero indexed)
+        # lrx_out = lrx.explain_example_new(test_mat=data, idx=0, pred_class=1, graph=False)
+
+    sample = data.loc[0].values
+    lrx_out = lrx.explain_example_new(
+        sample=sample, 
+        test_mat=data, 
+        descriptive=True,
+        idx=0, 
+        pred_class=0,
+        num_features=10, 
+        graph=False)
+
+
+    print(lrx_out)
+    feature1_contrib = lrx_out.contribution.loc['feature1']
+    feature5_contrib = lrx_out.contribution.loc['feature5']
+
+    print(feature1_contrib, feature5_contrib)
+
 
 if __name__ == '__main__':
     # test_lorax_breast_cancer()
-    unittest.main()
+    # unittest.main()
+    test_scores_lorax()
