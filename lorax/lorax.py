@@ -80,6 +80,9 @@ class TheLorax(object):
         self.X_test = None
         self.feature_stats = None
 
+        # When populated, this will contain the component information of the model
+        self.model_info = dict() 
+
     def explain_example_new(self, sample=None,
                             pred_class=None,
                             num_features=10, 
@@ -124,12 +127,17 @@ class TheLorax(object):
         if isinstance(self.clf, RandomForestClassifier):
             # Getting values for Random Forest Classifier
             return_tuple = get_contrib_list_RF(self.clf, sample, self.column_names)
-            num_trees = return_tuple[0]
-            global_score_dict = return_tuple[1]
-            feature_dict = return_tuple[2]
-            aggregated_dict = return_tuple[3]
+
+            # Feature importance scores
             contrib_list = return_tuple[4]
         
+            # Model component information
+            self.model_info['num_trees'] = return_tuple[0]
+            self.model_info['global_score_dict'] = return_tuple[1]
+            self.model_info['feature_dict'] = return_tuple[2]
+            self.model_info['aggregated_dict'] = return_tuple[3]
+            
+            
         elif isinstance(self.clf, LogisticRegression):
             # Getting values for Random Forest Classifier
             # TODO: The column names need to be consolidated
