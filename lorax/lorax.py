@@ -180,7 +180,6 @@ class TheLorax(object):
             self._populate_feature_stats()
             contrib_df = self._build_contrib_df(contrib_list, idx=idx, how=how)
 
-
             # adding overall feature importance from model level
             overall_importance = []
             for i, cname in enumerate(self.column_names):
