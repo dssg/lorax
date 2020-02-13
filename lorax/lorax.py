@@ -135,8 +135,7 @@ class TheLorax(object):
             self.model_info['num_trees'] = return_tuple[0]
             self.model_info['global_score_dict'] = return_tuple[1]
             self.model_info['feature_dict'] = return_tuple[2]
-            self.model_info['aggregated_dict'] = return_tuple[3]
-            
+            self.model_info['aggregated_dict'] = return_tuple[3]        
             
         elif isinstance(self.clf, LogisticRegression):
             # Getting values for Random Forest Classifier
@@ -181,6 +180,28 @@ class TheLorax(object):
             self._populate_feature_stats()
             contrib_df = self._build_contrib_df(contrib_list, idx=idx, how=how)
 
+
+            # adding overall feature importance from model level
+            overall_importance = []
+            for i, cname in enumerate(self.column_names):
+                if isinstance(self.clf, LogisticRegression):
+                    overall_importance.append((cname, self.clf.coef_[0][i]))
+                
+                elif isinstance(self.clf, RandomForestClassifier):
+                    overall_importance.append((cname, self.clf.feature_importances_[i]))
+
+                else:
+                    pass
+
+            updated_list = add_overall_feature_importance(contrib_list, overall_importance)
+            updated_columns = ['feature', 'sample_rank', 'overall_imp', 'overall_rank', 'rank_change']
+            contrib_df = contrib_df.join(
+                pd.DataFrame(
+                    data=updated_list, 
+                    columns=updated_columns
+                ).set_index('feature')
+            )
+
             if graph:
                 # NOTE-KA: num features seem to be a unnecessary dependency. 
                 # Defaulting to 10 in the function signature is less general. 
@@ -192,7 +213,7 @@ class TheLorax(object):
 
         else:
             contrib_df = self._build_contrib_df_sample(contrib_list, how=how)
-        
+
         return contrib_df
 
    
