@@ -97,8 +97,8 @@ def test_scores_lorax():
     sample = data.loc[0].values
     lrx_out = lrx.explain_example_new(
         sample=sample, 
-        test_mat=data, 
-        descriptive=True,
+        test_mat=None, 
+        descriptive=False,
         idx=0, 
         pred_class=0,
         num_features=10, 
