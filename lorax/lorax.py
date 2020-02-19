@@ -49,7 +49,7 @@ class TheLorax(object):
             each feature name in the test matrix must match one and only one pattern.
     """
 
-    def __init__(self, clf, column_names, column_patterns=None, id_col=None, date_col=None, outcome_col=None):
+    def __init__(self, clf, column_names, test_mat=None, column_patterns=None, id_col=None, date_col=None, outcome_col=None):
         self.clf = clf
 
         # NOTE: Minor. maybe this should be feature_names and feature_patterns 
@@ -63,6 +63,7 @@ class TheLorax(object):
         self.date_col = date_col
         self.outcome_col = outcome_col
 
+        # TODO: Move this to the load dataset
         self.drop_cols = []
         if date_col is not None and date_col not in id_col:
                 self.drop_cols.append(date_col)
@@ -78,10 +79,59 @@ class TheLorax(object):
         # TODO: These should be moved out from the constructor. 
         # Current version of the code depends on their existence
         self.X_test = None
+        self.y_test = None
+        self.preds = None
         self.feature_stats = None
 
+        if test_mat is not None:
+            self.load_dataset(test_mat=test_mat, id_col=id_col, date_col=date_col, oucome_col=outcome_col)
+        
         # When populated, this will contain the component information of the model
         self.model_info = dict() 
+
+    def load_dataset(self, test_mat: pd.DataFrame, id_col=None, date_col=None, outcome_col=None):
+        """ A user can load a test dataset to the object. 
+            This dataset can be used to provide context to the individual predition explanations.
+
+            param test_mat: A pandas dataframe
+            param id_col: The name(s) of the columns to uniquely identify an instance (entity_id in triage land)
+            param date_col: 
+            param outcome_col: 
+
+            return: None
+        """
+        
+        df = test_mat.copy()
+
+        if id_col is not None: 
+            df.set_index(id_col, inplace=True)
+            # TODO: minor, check whether this is the ideal way of doing this
+            if type(id_col) in [list, tuple]:
+                self.combined_index = True
+
+        drop_cols = list()
+        if date_col not in id_col:
+            drop_cols.append(drop_cols)
+
+        if outcome_col is not None:
+            drop_cols.append(outcome_col)
+
+            self.y_test = df[outcome_col]
+
+        self.X_test = df.drop(drop_cols, axis=1)   
+
+        # Setting the predictions of the test dataset
+        self.preds = pd.DataFrame(
+            {'pred': [p[1] for p in self.clf.predict_proba(self.X_test.values)]},
+            index=self.X_test.index
+        )         
+        
+        # For classifiers with intercepts, we add the intercept as a "feature"
+        if hasattr(self.clf, 'intercept_'):
+            self.X_test["Intercept"] = [self.clf.intercept_[0] for i in range(len(self.X_test))]
+
+        # pre-calculating the feature distributions
+        self._populate_feature_stats()
 
     def explain_example_new(self, sample=None,
                             pred_class=None,
