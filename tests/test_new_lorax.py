@@ -4,6 +4,7 @@ project_path = os.path.join(os.path.dirname(__file__), '../')
 sys.path.append(project_path)
 
 import pandas as pd
+# from pandas.testing import assert_frame_equal
 import numpy as np
 import random
 from datetime import datetime
@@ -74,16 +75,6 @@ class TestLorax(unittest.TestCase):
             graph=False
         )
 
-        lrx_out2 = lrx.explain_example_new(
-            sample=None, 
-            test_mat=data, 
-            descriptive=True,
-            idx=0, 
-            pred_class=pred_class,
-            num_features=10, 
-            graph=False
-        )
-
         feature1_contrib = lrx_out.contribution.loc['feature1']
         feature5_contrib = lrx_out.contribution.loc['feature5']
 
@@ -98,50 +89,19 @@ class TestLorax(unittest.TestCase):
 
         self.assertFalse('feature3' in lrx_out.contribution)
 
-        print('Asserting the descriptive feature contributions...')
-
-        # self.assertEqual(lrx_out, lrx_out2)
-
-        print(lrx_out.head())
-        print(lrx_out2.head())
-
-def test_scores_lorax():
-    """New test to check the importance scores and their signs (+) or (-)"""
-    lrx = TheLorax(
-            global_clf, 
+    def test_data_loader(self):
+        """Testing the data loader"""
+        lrx = TheLorax(
+            clf=global_clf, 
             column_names=data.columns.values,
+            test_mat=data,
             id_col=None,
             date_col=None, 
-            outcome_col=None)
+            outcome_col=None
+        )
 
-        # without id_col (zero indexed)
-        # lrx_out = lrx.explain_example_new(test_mat=data, idx=0, pred_class=1, graph=False)
-
-    sample = data.loc[0].values
-    lrx_out = lrx.explain_example_new(
-        sample=sample, 
-        test_mat=None, 
-        descriptive=False,
-        idx=0, 
-        pred_class=0,
-        num_features=10, 
-        graph=False)
-
-    lrx.load_dataset(test_mat=data)
-
-    print(self.X_test.head())
-
-    # print(lrx_out)
-
-
-    # feature1_contrib = lrx_out.contribution.loc['feature1']
-    # feature5_contrib = lrx_out.contribution.loc['feature5']
-
-    # print(feature1_contrib, feature5_contrib)
-
+        pd.testing.assert_frame_equal(data, lrx.X_test)
 
 
 if __name__ == '__main__':
-    # test_lorax_breast_cancer()
     unittest.main()
-    # test_scores_lorax()
