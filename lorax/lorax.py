@@ -133,7 +133,7 @@ class TheLorax(object):
             self.X_test["Intercept"] = [self.clf.intercept_[0] for i in range(len(self.X_test))]
 
         # pre-calculating the feature distributions
-        self.feature_stats = self._populate_feature_stats(test_mat=self.X_test)
+        self.feature_stats = self.populate_feature_stats(test_mat=self.X_test)
 
     def explain_example_new(self, sample=None,
                             pred_class=None,
@@ -231,7 +231,7 @@ class TheLorax(object):
                 test_mat = self.X_test
                 fstats = self.feature_stats
             else:
-                fstats = self._populate_feature_stats(test_mat)
+                fstats = self.populate_feature_stats(test_mat)
 
             contrib_df = self._build_contrib_df(
                 contrib_list, 
@@ -332,9 +332,10 @@ class TheLorax(object):
             self.X_test["Intercept"] = [self.clf.intercept_[0] for i in range(len(self.X_test))]
 
         # pre-calcuate feature distribution statistics for each feature
-        self._populate_feature_stats()
+        self.feature_stats = self.populate_feature_stats()
    
-    def _populate_feature_stats(self, test_mat):
+    # TODO: make protected again. Making public for testing
+    def populate_feature_stats(self, test_mat):
         """Setter function for feature distribution statistics.
 
         Pre-calculates the feature distribution information from the test matrix, including
