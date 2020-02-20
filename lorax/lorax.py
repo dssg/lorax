@@ -448,18 +448,21 @@ class TheLorax(object):
         return contrib_df
 
 
-    def _build_contrib_df(self, mean_by_trees_list, idx, how):
+    def _build_contrib_df(self, mean_by_trees_list, test_mat, idx, sample, how='features'):
         """
         Build contribution dataframe.
 
         In:
             - mean_by_trees_list (list):
+            - test_mat: The reference test matrix, a dataframe
             - idx: index for example
+            - sample: the row matrix of the sample. Either a idx or sample should be provided
             - how: Whether to calculate feature contributions at
                     the level of individual features
         Out:
             - contrib_df (pandas DF)
         """
+
         contrib_df = pd.DataFrame(mean_by_trees_list,
                                   columns=['feature', 'contribution'])
         contrib_df.set_index('feature', inplace=True)
@@ -473,15 +476,21 @@ class TheLorax(object):
             contrib_df = contrib_df.join(self.feature_stats, how='left')
 
             # lookup the specific example's values
-            for col in contrib_df.index.values:
+            for i, col in enumerate(contrib_df.index.values):
                 # NOTE-KA: This way, the sample has to be an element of the test dataset
                 if self.combined_index:
-                    example_value = self.X_test.loc[idx, col].values[0]
+                    if idx is not None:
+                        example_value = test_mat.loc[idx, col].values[0]
+                    else:
+                        example_value = sample[i]
                 else:
-                    example_value = self.X_test.loc[idx, col]
+                    if idx is not None:
+                        example_value = self.X_test.loc[idx, col]
+                    else:
+                        example_value = sample[i]
 
                 contrib_df.loc[col, 'example_value'] = example_value
-                vals, pct_sco = self.X_test[col], example_value
+                vals, pct_sco = test_mat[col], example_value
                 contrib_df.loc[col, 'example_pctl'] = stats.percentileofscore(vals, pct_sco) / 100.0
 
             contrib_df['z_score'] = 1.0 * (contrib_df['example_value'] - contrib_df['mean'])
