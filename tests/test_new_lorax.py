@@ -48,12 +48,13 @@ global_clf = RandomForestClassifier(n_estimators=n_estimators,
 class TestLorax(unittest.TestCase):
     """Tests cases for Lorax."""
 
-    def test_calculated_feature_importances(self):
+    def test_feature_importances(self):
         """Test calculated feature importances."""
         # Setting up lorax
         lrx = TheLorax(
-            global_clf, 
+            clf=global_clf, 
             column_names=data.columns.values,
+            test_mat=None,
             id_col=None,
             date_col=None, 
             outcome_col=None)
@@ -62,25 +63,44 @@ class TestLorax(unittest.TestCase):
         # lrx_out = lrx.explain_example_new(test_mat=data, idx=0, pred_class=1, graph=False)
 
         sample = data.loc[0].values
+        pred_class = 0 # The label w.r.t the explanations are generated
         lrx_out = lrx.explain_example_new(
+            sample=sample, 
+            test_mat=data, 
+            descriptive=True,
+            idx=None, 
+            pred_class=pred_class,
+            num_features=10, 
+            graph=False
+        )
+
+        lrx_out2 = lrx.explain_example_new(
             sample=None, 
             test_mat=data, 
             descriptive=True,
             idx=0, 
-            pred_class=1,
+            pred_class=pred_class,
             num_features=10, 
-            graph=True)
-
-
-        print(lrx_out)
+            graph=False
+        )
 
         feature1_contrib = lrx_out.contribution.loc['feature1']
         feature5_contrib = lrx_out.contribution.loc['feature5']
 
+        print('Asserting feature importance scores...')
         # Test cases for correct feature importances
-        self.assertEqual(feature1_contrib, 0.04889021376498209)
-        self.assertEqual(feature5_contrib, -0.31556073962118303)
+        if pred_class == 1:
+            self.assertEqual(feature1_contrib, 0.04889021376498209)
+            self.assertEqual(feature5_contrib, -0.31556073962118303)
+        else:
+            self.assertEqual(feature1_contrib, -0.04889021376498209)
+            self.assertEqual(feature5_contrib, 0.31556073962118303)
+
         self.assertFalse('feature3' in lrx_out.contribution)
+
+        print('Asserting the descriptive feature contributions...')
+
+        self.assertEqual(lrx_out, lrx_out2)
 
 def test_scores_lorax():
     """New test to check the importance scores and their signs (+) or (-)"""
@@ -104,15 +124,21 @@ def test_scores_lorax():
         num_features=10, 
         graph=False)
 
+    lrx.load_dataset(test_mat=data)
 
-    print(lrx_out)
-    feature1_contrib = lrx_out.contribution.loc['feature1']
-    feature5_contrib = lrx_out.contribution.loc['feature5']
+    print(self.X_test.head())
 
-    print(feature1_contrib, feature5_contrib)
+    # print(lrx_out)
+
+
+    # feature1_contrib = lrx_out.contribution.loc['feature1']
+    # feature5_contrib = lrx_out.contribution.loc['feature5']
+
+    # print(feature1_contrib, feature5_contrib)
+
 
 
 if __name__ == '__main__':
     # test_lorax_breast_cancer()
-    # unittest.main()
-    test_scores_lorax()
+    unittest.main()
+    # test_scores_lorax()
