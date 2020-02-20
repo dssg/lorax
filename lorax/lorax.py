@@ -133,7 +133,7 @@ class TheLorax(object):
             self.X_test["Intercept"] = [self.clf.intercept_[0] for i in range(len(self.X_test))]
 
         # pre-calculating the feature distributions
-        self._populate_feature_stats()
+        self.feature_stats = self._populate_feature_stats(test_mat=self.X_test)
 
     def explain_example_new(self, sample=None,
                             pred_class=None,
@@ -229,14 +229,16 @@ class TheLorax(object):
             # If descriptive, it rolls back to the original case         
             if test_mat is None:
                 test_mat = self.X_test
+                fstats = self.feature_stats
+            else:
+                fstats = self._populate_feature_stats(test_mat)
 
-            # NOTE-KA: I think this method should take in the test dataset as an argument
-            self._populate_feature_stats()
             contrib_df = self._build_contrib_df(
                 contrib_list, 
                 test_mat=test_mat, 
                 idx=idx,
                 sample=sample, 
+                feature_stats=fstats,
                 how=how
             )
 
@@ -332,16 +334,20 @@ class TheLorax(object):
         # pre-calcuate feature distribution statistics for each feature
         self._populate_feature_stats()
    
-    def _populate_feature_stats(self):
+    def _populate_feature_stats(self, test_mat):
         """Setter function for feature distribution statistics.
 
         Pre-calculates the feature distribution information from the test matrix, including
         type (continuous or binary), mean, median, 5th & 95th percentiles, standard deviation.
         """
+        # TODO: Modified to take in a test matrix, I think the function name should change
+
         fstats = pd.DataFrame(columns=['feature', 'type', 'mean', 'stdev', 'median', 'p5', 'p95'])
-        dtypes = self.X_test.dtypes
+        dtypes = test_mat.dtypes
+
+        # TODO: can vectorize?
         for col in self.column_names:
-            feat = self.X_test[col]
+            feat = test_mat[col]
             d = {'feature': col,
                  'mean': feat.mean(),
                  'median': feat.median(),
@@ -363,7 +369,8 @@ class TheLorax(object):
             fstats = fstats.append(d, ignore_index=True)
 
         fstats.set_index('feature', inplace=True)
-        self.feature_stats = fstats
+        # self.feature_stats = fstats
+        return fstats
 
     def set_name_patterns(self, name_patterns):
         """Map regex patterns to column names.
@@ -455,7 +462,7 @@ class TheLorax(object):
         return contrib_df
 
 
-    def _build_contrib_df(self, mean_by_trees_list, test_mat, idx, sample, how='features'):
+    def _build_contrib_df(self, mean_by_trees_list, test_mat, idx, sample, feature_stats, how='features'):
         """
         Build contribution dataframe.
 
@@ -479,7 +486,7 @@ class TheLorax(object):
             contrib_df = contrib_df.join(self.column_patterns, how='inner')
             contrib_df = contrib_df.groupby(['name_pattern'])['contribution'].sum().to_frame()
         else:
-            contrib_df = contrib_df.join(self.feature_stats, how='left')
+            contrib_df = contrib_df.join(feature_stats, how='left')
 
             # lookup the specific example's values
             for i, col in enumerate(contrib_df.index.values):
@@ -490,7 +497,7 @@ class TheLorax(object):
                         example_value = sample[i]
                 else:
                     if idx is not None:
-                        example_value = self.X_test.loc[idx, col]
+                        example_value = test_mat.loc[idx, col]
                     else:
                         example_value = sample[i]
 
