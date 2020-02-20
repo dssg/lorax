@@ -332,7 +332,7 @@ class TheLorax(object):
             self.X_test["Intercept"] = [self.clf.intercept_[0] for i in range(len(self.X_test))]
 
         # pre-calcuate feature distribution statistics for each feature
-        self.feature_stats = self.populate_feature_stats()
+        self.feature_stats = self.populate_feature_stats(test_mat=self.X_test)
    
     # TODO: make protected again. Making public for testing
     def populate_feature_stats(self, test_mat):
