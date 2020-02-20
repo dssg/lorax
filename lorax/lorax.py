@@ -148,8 +148,8 @@ class TheLorax(object):
             raise ValueError('Must either provide a data sample or a test matrix with a sample index')
         
         # A test matrix is necessary for getting descriptive stats
-        if descriptive and (test_mat is None and sample is None and idx is None):
-            raise ValueError('Sould provide a test dataset and a sample/sample index for descriptive')
+        if descriptive and (test_mat is None and self.X_test is None):
+            raise ValueError('Sould provide a test dataset or should have preloaded a test dataset')
 
         if how == 'patterns' and self.column_patterns is None:
             raise ValueError('Must specify name patterns to aggregate over.' +
@@ -227,11 +227,18 @@ class TheLorax(object):
         # The code is available in the original constructor, move it here
         if descriptive:  
             # If descriptive, it rolls back to the original case         
-            self.X_test = test_mat
+            if test_mat is None:
+                test_mat = self.X_test
 
             # NOTE-KA: I think this method should take in the test dataset as an argument
             self._populate_feature_stats()
-            contrib_df = self._build_contrib_df(contrib_list, idx=idx, how=how)
+            contrib_df = self._build_contrib_df(
+                contrib_list, 
+                test_mat=test_mat, 
+                idx=idx,
+                sample=sample, 
+                how=how
+            )
 
             # adding overall feature importance from model level
             overall_importance = []
@@ -462,7 +469,6 @@ class TheLorax(object):
         Out:
             - contrib_df (pandas DF)
         """
-
         contrib_df = pd.DataFrame(mean_by_trees_list,
                                   columns=['feature', 'contribution'])
         contrib_df.set_index('feature', inplace=True)
