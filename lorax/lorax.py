@@ -64,12 +64,12 @@ class TheLorax(object):
         self.outcome_col = outcome_col
 
         # TODO: Move this to the load dataset
-        self.drop_cols = []
-        if date_col is not None and date_col not in id_col:
-                self.drop_cols.append(date_col)
+        # self.drop_cols = []
+        # if date_col is not None and date_col not in id_col:
+        #         self.drop_cols.append(date_col)
 
-        if outcome_col is not None:
-            self.drop_cols.append(outcome_col)
+        # if outcome_col is not None:
+        #     self.drop_cols.append(outcome_col)
 
         self.combined_index = False
         if id_col is not None:
@@ -81,17 +81,19 @@ class TheLorax(object):
         self.X_test = None
         self.y_test = None
         self.preds = None
+        self.drop_cols = list()
         self.feature_stats = None
 
         if test_mat is not None:
-            self.load_dataset(test_mat=test_mat, id_col=id_col, date_col=date_col, oucome_col=outcome_col)
+            self.load_dataset(test_mat=test_mat, id_col=id_col, date_col=date_col, outcome_col=outcome_col)
         
         # When populated, this will contain the component information of the model
         self.model_info = dict() 
 
     def load_dataset(self, test_mat: pd.DataFrame, id_col=None, date_col=None, outcome_col=None):
-        """ A user can load a test dataset to the object. 
+        """ Loading a test dataset to the object. 
             This dataset can be used to provide context to the individual predition explanations.
+            Context entails observing feature distributions
 
             param test_mat: A pandas dataframe
             param id_col: The name(s) of the columns to uniquely identify an instance (entity_id in triage land)
@@ -108,17 +110,17 @@ class TheLorax(object):
             # TODO: minor, check whether this is the ideal way of doing this
             if type(id_col) in [list, tuple]:
                 self.combined_index = True
-
-        drop_cols = list()
-        if date_col not in id_col:
-            drop_cols.append(drop_cols)
+        
+        # exclude non-feature columns (date, outcome if present)
+            if date_col not in id_col:
+                self.drop_cols.append(date_col)
 
         if outcome_col is not None:
-            drop_cols.append(outcome_col)
+            self.drop_cols.append(outcome_col)
 
             self.y_test = df[outcome_col]
 
-        self.X_test = df.drop(drop_cols, axis=1)   
+        self.X_test = df.drop(self.drop_cols, axis=1)   
 
         # Setting the predictions of the test dataset
         self.preds = pd.DataFrame(
@@ -137,15 +139,17 @@ class TheLorax(object):
                             pred_class=None,
                             num_features=10, 
                             how='features', 
-                            descriptive=False, test_mat=None, idx=None, graph=False):
+                            descriptive=False, 
+                            test_mat=None, 
+                            idx=None, graph=False):
 
         # User has to pass either an index and a test_mat or a samples (a row)
         if sample is None and (test_mat is None or idx is None):
             raise ValueError('Must either provide a data sample or a test matrix with a sample index')
         
         # A test matrix is necessary for getting descriptive stats
-        if descriptive and (test_mat is None or idx is None):
-            raise ValueError('Sould provide a test dataset and a sample index for descriptive')
+        if descriptive and (test_mat is None and sample is None and idx is None):
+            raise ValueError('Sould provide a test dataset and a sample/sample index for descriptive')
 
         if how == 'patterns' and self.column_patterns is None:
             raise ValueError('Must specify name patterns to aggregate over.' +
@@ -158,17 +162,16 @@ class TheLorax(object):
             sample = sample.values
 
         # Formatting the test data matrix by setting appropriate index and removing non-feature coulmns
-        if test_mat is not None:
-            cols = list(test_mat.columns)
-            
-            # Removing the columns that need to be dropped
-            # NOTE-KA: Similar to the comment in the constructor, I think this should be handled outside of Lorax
-            for dr_col in self.drop_cols:
-                if dr_col in cols:
-                    test_mat = test_mat.drop(dr_col, axis=1)
-
+        if test_mat is not None:            
+            # Indexing and exclusing non-feature columns
+            # NOTE-KA: I think this should be handled outside of Lorax
             if self.id_col is not None:
                 test_mat.set_index(self.id_col, inplace=True)
+
+            for dr_col in self.drop_cols:
+                # Dropping the non-feature columns in the new test matrix, if they exist
+                # TODO: Handle the ID cols, Date cols elegantly
+                test_mat = test_mat.drop(dr_col, axis=1, errors='ignore')
 
             if idx is not None:
                 sample = test_mat.loc[idx].values
