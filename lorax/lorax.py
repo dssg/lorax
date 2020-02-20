@@ -477,7 +477,6 @@ class TheLorax(object):
 
             # lookup the specific example's values
             for i, col in enumerate(contrib_df.index.values):
-                # NOTE-KA: This way, the sample has to be an element of the test dataset
                 if self.combined_index:
                     if idx is not None:
                         example_value = test_mat.loc[idx, col].values[0]
