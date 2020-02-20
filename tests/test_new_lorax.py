@@ -34,10 +34,12 @@ data = np.append(entity_ids.reshape(y.shape[0], 1), data, axis=1)
 columns = ["entity_id", "as_of_date", "feature1", "feature2",
            "feature3", "feature4", "feature5", "outcome"]
 
+features = [x for x in columns if x not in ['entity_id', 'as_of_date', 'outcome']]
+
 data = pd.DataFrame(data, columns=columns)
 
 # Testing the independence from id_col, date_col, outcome
-data = data.drop(['entity_id', 'as_of_date', 'outcome'], axis=1)
+# data = data.drop(['entity_id', 'as_of_date', 'outcome'], axis=1)
 
 
 n_estimators = 2
@@ -54,20 +56,21 @@ class TestLorax(unittest.TestCase):
         # Setting up lorax
         lrx = TheLorax(
             clf=global_clf, 
-            column_names=data.columns.values,
-            test_mat=None,
-            id_col=None,
-            date_col=None, 
-            outcome_col=None)
+            column_names=features,
+            test_mat=data,
+            id_col='entity_id',
+            date_col='as_of_date', 
+            outcome_col='outcome')
 
         # without id_col (zero indexed)
         # lrx_out = lrx.explain_example_new(test_mat=data, idx=0, pred_class=1, graph=False)
 
-        sample = data.loc[0].values
+        sample = data.loc[0, features].values
+
         pred_class = 0 # The label w.r.t the explanations are generated
         lrx_out = lrx.explain_example_new(
             sample=sample, 
-            test_mat=data, 
+            test_mat=None, 
             descriptive=True,
             idx=None, 
             pred_class=pred_class,
@@ -89,19 +92,44 @@ class TestLorax(unittest.TestCase):
 
         self.assertFalse('feature3' in lrx_out.contribution)
 
-    def test_data_loader(self):
+    def test_feature_stats(self):
         """Testing the data loader"""
+        
         lrx = TheLorax(
             clf=global_clf, 
-            column_names=data.columns.values,
+            column_names=features,
             test_mat=data,
-            id_col=None,
-            date_col=None, 
-            outcome_col=None
+            id_col='entity_id',
+            date_col='as_of_date', 
+            outcome_col='outcome'
         )
 
-        pd.testing.assert_frame_equal(data, lrx.X_test)
+        st1 = lrx.populate_feature_stats(data[features])
 
+        pd.testing.assert_frame_equal(st1, lrx.feature_stats)
+
+    def test_descriptive_explanation_cases(self):
+        """ 
+            There are different methods to get a descriptive explanation
+            This test asserts all those methods yield the same answer        
+        """
+        pass
+
+    def test_old_vs_new_lorax(self):
+        """
+            Verifying that the new explain method is 
+            generating the same explanations as before
+        """
+        pass
+
+    def test_explanation_patterns(self):
+        """
+            Testing whether the explanations interms of 
+            feature patterns are generated correctly
+        """
+        pass
 
 if __name__ == '__main__':
+    print(data.columns.values)
     unittest.main()
+    
