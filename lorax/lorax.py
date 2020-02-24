@@ -143,7 +143,7 @@ class TheLorax(object):
                             test_mat=None, 
                             idx=None, graph=False):
 
-        # TODO: Adapt the docstring to tne new function
+        # TODO: Adapt the docstring to the new function
         """
         Graph or return individual feature importances for an example.
 
@@ -185,6 +185,10 @@ class TheLorax(object):
             and (if using `how='features'`) feature distribution information
 
         """
+        # TODO: Categoricals can be handled using regex patterns, but this currently precludes
+        # showing feature distribution information (since we don't know how to combine distributions
+        # for arbitary feature groupings), but if just using patterns for categoricals/imputed flags
+        # we should still be able to show relevant distribution info...
 
         # User has to pass either an index and a test_mat or a samples (a row)
         if sample is None and (test_mat is None or idx is None):
