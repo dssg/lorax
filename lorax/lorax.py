@@ -143,6 +143,49 @@ class TheLorax(object):
                             test_mat=None, 
                             idx=None, graph=False):
 
+        # TODO: Adapt the docstring to tne new function
+        """
+        Graph or return individual feature importances for an example.
+
+        This method is the primary interface for TheLorax to calculate individual feature
+        importances for a given example (identified by `idx`). It can be used to either
+        return a pandas DataFrame with contributions and feature distributions (if
+        `graph=False`) or a graphical representation of the top `num_features` contributions
+        (if `graph=True`, the default) for use in a jupyter notebook.
+
+        Feature contributions can be calucalted either for all features separately (`how='features',
+        the default) or using regular expression patterns to group sets of features together
+        (`how='patterns'`). When graphing contributions for all features, graphs will contain two
+        components:
+            1. A bar graph of the top num_features contributions to the example's score
+            2. For each of these features, a graph showing the percentile for the feature's mean
+               across the entire test set (gray dot), the percentile of the feature value for the
+               example being explained (orange dot) and the z-score for that value
+        When using regular expression patterns, the feature distribution information is omitted
+        (from both graphical and dataframe outputs) as the contributions reflect aggregations over
+        an arbitrary number and types of features.
+
+        Arguments:
+            idx (int) The entity id of the example we want to explain
+            pred_class (int) The predicted class for the example (currently must be 1 or 0). The
+                returned feature contributions will be taken relative to the score for this class.
+                If None (the default), the predicted class will be assigned based on whether the
+                example's score is above or below a threshold of 0.5.
+            num_features (int) The number of features with the highest contributions to graph
+                (ignored if `graph=False` in which case the entire set will be returned)
+            graph (bool) Whether to graph the feature contributions or return a dataframe
+                without graphing (default: True)
+            how (str) Whether to calculate feature contributions at the level of individual features
+                (`how='features'`, the default) or using regex patterns (`how='patterns'`).
+                If using regex patterns, `name_patterns` must have been provided when the object
+                was constructed or through calling `set_name_patterns()`.
+
+        Returns:
+            If `graph=False`, returns a pandas dataframe with individual feature contributions
+            and (if using `how='features'`) feature distribution information
+
+        """
+
         # User has to pass either an index and a test_mat or a samples (a row)
         if sample is None and (test_mat is None or idx is None):
             raise ValueError('Must either provide a data sample or a test matrix with a sample index')
@@ -633,6 +676,8 @@ class TheLorax(object):
         ax.set_title('Feature Distributions', fontsize=16)
 
     def explain_example(self, idx, pred_class=None, num_features=10, graph=True, how='features'):
+        # TODO: This method is now deprecated. So, combine this with the explain_example_new function 
+        # and rename it to explain_example
         """Graph or return individual feature importances for an example.
 
         This method is the primary interface for TheLorax to calculate individual feature
