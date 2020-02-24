@@ -202,6 +202,7 @@ class TheLorax(object):
             raise ValueError('Must specify name patterns to aggregate over.' +
                              'Use TheLorax.set_name_patterns() first.')
         elif how not in ['features', 'patterns']:
+            # NOTE-KA: Minor, in this case, should we default to features and let the code run with a warning?
             raise ValueError('How must be one of features or patterns.')
 
         # TODO: Add error handling for sample's features and the data features.
@@ -310,12 +311,7 @@ class TheLorax(object):
                 ).set_index('feature')
             )
 
-            if graph:
-                # NOTE-KA: num features seem to be a unnecessary dependency. 
-                # Defaulting to 10 in the function signature is less general. 
-                # For now adding a error check, if passed value > # features in the df, will plot all values
-                # But, I feel like it should be handled more elegantly
-                num_features = min(num_features, contrib_df.shape[0]) 
+            if graph:  
                 self._plot_graph(idx, pred_class, score,
                                 num_features, contrib_df, how)
 
