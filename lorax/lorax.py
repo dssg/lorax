@@ -137,11 +137,13 @@ class TheLorax(object):
 
     def explain_example_new(self, sample=None,
                             pred_class=None,
-                            num_features=10, 
-                            how='features', 
-                            descriptive=False, 
                             test_mat=None, 
-                            idx=None, graph=False):
+                            idx=None,
+                            descriptive=False,
+                            graph=False,
+                            num_features=10, 
+                            how='features'
+                            ):
 
         # User has to pass either an index and a test_mat or a samples (a row)
         if sample is None and ((test_mat is None and self.X_test is None) or idx is None):
