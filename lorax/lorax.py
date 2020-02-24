@@ -135,13 +135,13 @@ class TheLorax(object):
         # pre-calculating the feature distributions
         self.feature_stats = self.populate_feature_stats(test_mat=self.X_test)
 
-    def explain_example_new(self, sample=None,
-                            pred_class=None,
-                            num_features=10, 
-                            how='features', 
-                            descriptive=False, 
-                            test_mat=None, 
-                            idx=None, graph=False):
+    def explain_example(self, sample=None,
+                        pred_class=None,
+                        num_features=10, 
+                        how='features', 
+                        descriptive=False, 
+                        test_mat=None, 
+                        idx=None, graph=False):
 
         # TODO: Adapt the docstring to the new function
         """
@@ -674,127 +674,6 @@ class TheLorax(object):
         ax.set_xticks([])
         ax.set_facecolor('white')
         ax.set_title('Feature Distributions', fontsize=16)
-
-    def explain_example(self, idx, pred_class=None, num_features=10, graph=True, how='features'):
-        # TODO: This method is now deprecated. So, combine this with the explain_example_new function 
-        # and rename it to explain_example
-        """Graph or return individual feature importances for an example.
-
-        This method is the primary interface for TheLorax to calculate individual feature
-        importances for a given example (identified by `idx`). It can be used to either
-        return a pandas DataFrame with contributions and feature distributions (if
-        `graph=False`) or a graphical representation of the top `num_features` contributions
-        (if `graph=True`, the default) for use in a jupyter notebook.
-
-        Feature contributions can be calucalted either for all features separately (`how='features',
-        the default) or using regular expression patterns to group sets of features together
-        (`how='patterns'`). When graphing contributions for all features, graphs will contain two
-        components:
-            1. A bar graph of the top num_features contributions to the example's score
-            2. For each of these features, a graph showing the percentile for the feature's mean
-               across the entire test set (gray dot), the percentile of the feature value for the
-               example being explained (orange dot) and the z-score for that value
-        When using regular expression patterns, the feature distribution information is omitted
-        (from both graphical and dataframe outputs) as the contributions reflect aggregations over
-        an arbitrary number and types of features.
-
-        Arguments:
-            idx (int) The entity id of the example we want to explain
-            pred_class (int) The predicted class for the example (currently must be 1 or 0). The
-                returned feature contributions will be taken relative to the score for this class.
-                If None (the default), the predicted class will be assigned based on whether the
-                example's score is above or below a threshold of 0.5.
-            num_features (int) The number of features with the highest contributions to graph
-                (ignored if `graph=False` in which case the entire set will be returned)
-            graph (bool) Whether to graph the feature contributions or return a dataframe
-                without graphing (default: True)
-            how (str) Whether to calculate feature contributions at the level of individual features
-                (`how='features'`, the default) or using regex patterns (`how='patterns'`).
-                If using regex patterns, `name_patterns` must have been provided when the object
-                was constructed or through calling `set_name_patterns()`.
-
-        Returns:
-            If `graph=False`, returns a pandas dataframe with individual feature contributions
-            and (if using `how='features'`) feature distribution information
-
-        """
-        # TODO: Categoricals can be handled using regex patterns, but this currently precludes
-        # showing feature distribution information (since we don't know how to combine distributions
-        # for arbitary feature groupings), but if just using patterns for categoricals/imputed flags
-        # we should still be able to show relevant distribution info...
-
-        if how == 'patterns' and self.column_patterns is None:
-            raise ValueError('Must specify name patterns to aggregate over.' +
-                             'Use TheLorax.set_name_patterns() first.')
-        elif how not in ['features', 'patterns']:
-            raise ValueError('How must be one of features or patterns.')
-
-        # If we have MultiIndex, we need to sort
-        if self.combined_index:
-            self.preds.sort_index(level=0, inplace=True)
-            self.X_test.sort_index(level=0, inplace=True)
-
-        # score for this example for the positive class
-        # using threshold of 0.5 if pred_class is not given as an argument
-        score = self.preds.loc[idx, 'pred']
-        if pred_class is None:
-            pred_class = int(score >= 0.5)
-
-        # feature values for this example
-        sample = self.X_test.loc[idx, ].values
-        if self.combined_index:
-            sample = sample[0]
-
-        if isinstance(self.clf, RandomForestClassifier):
-            # Getting values for Random Forest Classifier
-            return_tuple = get_contrib_list_RF(self.clf, sample, self.column_names)
-
-            self.num_trees = return_tuple[0]
-            self.global_score_dict = return_tuple[1]
-            self.feature_dict = return_tuple[2]
-            self.aggregated_dict = return_tuple[3]
-            contrib_list = return_tuple[4]
-
-        elif isinstance(self.clf, LogisticRegression):
-            # Getting values for Random Forest Classifier
-            contrib_list = get_contrib_list_LR(self.clf, sample, self.column_names)
-
-        # TODO: handle this more elegantly for multiclass problems
-        # We need to flip the sign of the scores.
-        if pred_class == 0:
-            score = 1.0 - score
-            contrib_list = [(feature, score * -1) for feature, score in contrib_list]
-
-        logging.info('Used predicted class {} for example {}, score={}'.format(pred_class,
-                                                                               idx,
-                                                                               score))
-
-        # sorting in descending order by contribution then by feature name in the case of ties
-        contrib_list.sort(key=lambda x: (x[1] * -1, x[0]))
-
-        # drop the results into a dataframe to append on other information
-        contrib_df = self._build_contrib_df(contrib_list, idx, how)
-
-        # adding overall feature importance from model level
-        overall_importance = []
-        for i in range(len(self.column_names)):
-            if isinstance(self.clf, LogisticRegression):
-                overall_importance.append((self.column_names[i], self.clf.coef_[0][i]))
-            else:
-                overall_importance.append((self.column_names[i], self.clf.feature_importances_[i]))
-
-        updated_list = add_overall_feature_importance(contrib_list,
-                                                      overall_importance)
-        updated_columns = ['feature', 'sample_rank', 'overall_imp', 'overall_rank', 'rank_change']
-
-        contrib_df = contrib_df.join(pd.DataFrame(data=updated_list,
-                                                  columns=updated_columns).set_index('feature'))
-
-        if graph:
-            self._plot_graph(idx, pred_class, score,
-                             num_features, contrib_df, how)
-        else:
-            return contrib_df
 
     def speak_for_the_trees(self, id, pred_class=None, num_features=20, graph=True, how='features'):
         """Explain an example's score.
