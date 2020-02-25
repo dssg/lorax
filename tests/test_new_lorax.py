@@ -185,11 +185,40 @@ class TestLorax(unittest.TestCase):
 
         features2 = [x for x in data2.columns.values if x not in ['entity_id', 'as_of_date', 'outcome']]
 
+        n_estimators = 10
+        max_depth = 4
+        clf = RandomForestClassifier(
+            n_estimators=n_estimators, 
+            max_depth=max_depth,
+            random_state=42).fit(data2[features2].values, y2)
+
+        lrx = TheLorax(
+            clf=clf, 
+            column_names=features2,
+            column_patterns=['feature', 'category_'],
+            test_mat=data2,
+            id_col=None,
+            date_col=None, 
+            outcome_col='outcome'
+        )
+
+        sample = data2.loc[0, features2].values
+        pred_class = 0 # The label w.r.t the explanations are generate
+
+        lrx_out = lrx.explain_example(
+            sample=sample, 
+            test_mat=None, 
+            descriptive=True,
+            idx=None, 
+            pred_class=pred_class,
+            num_features=10, 
+            graph=False,
+            how='patterns'
+        )
         
-        
+        print(lrx_out)        
 
 
 if __name__ == '__main__':
-    print(features)
     unittest.main()
     
