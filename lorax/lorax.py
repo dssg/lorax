@@ -57,6 +57,10 @@ class TheLorax(object):
         self.column_names = column_names
         self.column_patterns = column_patterns
         
+        # Register the regex patterns and associated columns if using
+        if column_patterns is not None:
+            self.set_name_patterns(column_patterns)
+
         # NOTE-KA: I feel like the method should be independent of these as these seem very triage specific. 
         # We can always have a script that bridges the triage data with the explain API
         self.id_col = id_col
@@ -70,7 +74,7 @@ class TheLorax(object):
 
         # if outcome_col is not None:
         #     self.drop_cols.append(outcome_col)
-
+        
         self.combined_index = False
         if id_col is not None:
             if type(id_col) in [list, tuple]:
