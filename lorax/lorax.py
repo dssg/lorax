@@ -682,6 +682,81 @@ class TheLorax(object):
         ax.set_facecolor('white')
         ax.set_title('Feature Distributions', fontsize=16)
 
+    def explain_example_old(self, idx, pred_class=None, num_features=10, graph=True, how='features'):
+        if how == 'patterns' and self.column_patterns is None:
+            raise ValueError('Must specify name patterns to aggregate over.' +
+                             'Use TheLorax.set_name_patterns() first.')
+        elif how not in ['features', 'patterns']:
+            raise ValueError('How must be one of features or patterns.')
+
+        # If we have MultiIndex, we need to sort
+        if self.combined_index:
+            self.preds.sort_index(level=0, inplace=True)
+            self.X_test.sort_index(level=0, inplace=True)
+
+        # score for this example for the positive class
+        # using threshold of 0.5 if pred_class is not given as an argument
+        score = self.preds.loc[idx, 'pred']
+        if pred_class is None:
+            pred_class = int(score >= 0.5)
+
+        # feature values for this example
+        sample = self.X_test.loc[idx, ].values
+        if self.combined_index:
+            sample = sample[0]
+
+        if isinstance(self.clf, RandomForestClassifier):
+            # Getting values for Random Forest Classifier
+            return_tuple = get_contrib_list_RF(self.clf, sample, self.column_names)
+
+            self.num_trees = return_tuple[0]
+            self.global_score_dict = return_tuple[1]
+            self.feature_dict = return_tuple[2]
+            self.aggregated_dict = return_tuple[3]
+            contrib_list = return_tuple[4]
+
+        elif isinstance(self.clf, LogisticRegression):
+            # Getting values for Random Forest Classifier
+            contrib_list = get_contrib_list_LR(self.clf, sample, self.column_names)
+
+        # TODO: handle this more elegantly for multiclass problems
+        # We need to flip the sign of the scores.
+        if pred_class == 0:
+            score = 1.0 - score
+            contrib_list = [(feature, score * -1) for feature, score in contrib_list]
+
+        logging.info('Used predicted class {} for example {}, score={}'.format(pred_class,
+                                                                               idx,
+                                                                               score))
+
+        # sorting in descending order by contribution then by feature name in the case of ties
+        contrib_list.sort(key=lambda x: (x[1] * -1, x[0]))
+
+        # drop the results into a dataframe to append on other information
+        contrib_df = self._build_contrib_df(contrib_list, idx, how)
+
+        # adding overall feature importance from model level
+        overall_importance = []
+        for i in range(len(self.column_names)):
+            if isinstance(self.clf, LogisticRegression):
+                overall_importance.append((self.column_names[i], self.clf.coef_[0][i]))
+            else:
+                overall_importance.append((self.column_names[i], self.clf.feature_importances_[i]))
+
+        updated_list = add_overall_feature_importance(contrib_list,
+                                                      overall_importance)
+        updated_columns = ['feature', 'sample_rank', 'overall_imp', 'overall_rank', 'rank_change']
+
+        contrib_df = contrib_df.join(pd.DataFrame(data=updated_list,
+                                                  columns=updated_columns).set_index('feature'))
+
+        if graph:
+            self._plot_graph(idx, pred_class, score,
+                             num_features, contrib_df, how)
+        else:
+            return contrib_df
+
+
     def speak_for_the_trees(self, id, pred_class=None, num_features=20, graph=True, how='features'):
         """Explain an example's score.
 
