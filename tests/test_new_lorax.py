@@ -119,37 +119,42 @@ class TestLorax(unittest.TestCase):
         """
             Verifying that the new explain method is 
             generating the same explanations as before
+
+            Note: This test was deprecated after verufying that the new explain instance 
+            returned the same results as the old one. 
+            The old method was emoved from the class
         """
-        lrx = TheLorax(
-            clf=global_clf, 
-            column_names=features,
-            test_mat=data,
-            id_col='entity_id',
-            date_col='as_of_date', 
-            outcome_col='outcome'
-        )
+        pass
+        # lrx = TheLorax(
+        #     clf=global_clf, 
+        #     column_names=features,
+        #     test_mat=data,
+        #     id_col='entity_id',
+        #     date_col='as_of_date', 
+        #     outcome_col='outcome'
+        # )
 
-        pred_class = 0 # The label w.r.t the explanations are generated
-        idx = 2
-        lrx_out_new = lrx.explain_example_new(
-            sample=None, 
-            test_mat=None, 
-            descriptive=True,
-            idx=idx, 
-            pred_class=pred_class,
-            num_features=10, 
-            graph=False
-        )
+        # pred_class = 0 # The label w.r.t the explanations are generated
+        # idx = 2
+        # lrx_out_new = lrx.explain_example(
+        #     sample=None, 
+        #     test_mat=None, 
+        #     descriptive=True,
+        #     idx=idx, 
+        #     pred_class=pred_class,
+        #     num_features=10, 
+        #     graph=False
+        # )
 
-        lrx_out_old = lrx.explain_example(
-            idx=idx,
-            pred_class=pred_class,
-            num_features=10,
-            graph=False,
-            how='features'
-        )
+        # lrx_out_old = lrx.explain_example(
+        #     idx=idx,
+        #     pred_class=pred_class,
+        #     num_features=10,
+        #     graph=False,
+        #     how='features'
+        # )
 
-        pd.testing.assert_frame_equal(lrx_out_new, lrx_out_old)
+        # pd.testing.assert_frame_equal(lrx_out_new, lrx_out_old)
 
 
     def test_explanation_patterns(self):
