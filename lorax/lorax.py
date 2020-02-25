@@ -191,7 +191,7 @@ class TheLorax(object):
         # we should still be able to show relevant distribution info...
 
         # User has to pass either an index and a test_mat or a samples (a row)
-        if sample is None and (test_mat is None or idx is None):
+        if sample is None and ((test_mat is None and self.X_test is None) or idx is None):
             raise ValueError('Must either provide a data sample or a test matrix with a sample index')
         
         # A test matrix is necessary for getting descriptive stats
@@ -208,6 +208,9 @@ class TheLorax(object):
         # TODO: Add error handling for sample's features and the data features.
         if isinstance(sample, pd.Series):
             sample = sample.values
+
+        if self.X_test is not None and idx is not None:
+            sample = self.X_test.loc[idx].values
 
         # Formatting the test data matrix by setting appropriate index and removing non-feature coulmns
         if test_mat is not None:            
