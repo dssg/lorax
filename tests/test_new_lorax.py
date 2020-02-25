@@ -68,7 +68,7 @@ class TestLorax(unittest.TestCase):
         sample = data.loc[0, features].values
 
         pred_class = 0 # The label w.r.t the explanations are generated
-        lrx_out = lrx.explain_example_new(
+        lrx_out = lrx.explain_example(
             sample=sample, 
             test_mat=None, 
             descriptive=True,
@@ -77,7 +77,7 @@ class TestLorax(unittest.TestCase):
             num_features=10, 
             graph=False
         )
-
+        
         feature1_contrib = lrx_out.contribution.loc['feature1']
         feature5_contrib = lrx_out.contribution.loc['feature5']
 
@@ -162,9 +162,34 @@ class TestLorax(unittest.TestCase):
             Testing whether the explanations interms of 
             feature patterns are generated correctly
         """
-        pass
+
+        # Creating the data with cateorical columns to have regex feature patterns
+        X2, y2 = datasets.make_classification(n_samples=10000, n_features=6,
+                                    n_informative=3, n_redundant=2,
+                                    random_state=42)
+
+        data2 = np.append(X2, y2.reshape(y2.shape[0], 1), axis=1)
+        columns2 = ["feature1", "feature2",
+                    "feature3", "feature4", "feature5", 
+                    "category", "outcome"]
+        data2 = pd.DataFrame(data2, columns=columns2)
+
+        # Creating the categorical features
+        data2['category']= pd.cut(
+            data2['category'], 
+            bins=2, 
+            labels=['a','b']
+        )
+
+        data2 = pd.get_dummies(data2, columns=['category'])
+
+        features2 = [x for x in data2.columns.values if x not in ['entity_id', 'as_of_date', 'outcome']]
+
+        
+        
+
 
 if __name__ == '__main__':
-    print(data.columns.values)
+    print(features)
     unittest.main()
     
