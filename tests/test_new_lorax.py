@@ -206,7 +206,7 @@ class TestLorax(unittest.TestCase):
 
         idx = 0
         sample = data2.loc[0, features2].values
-        pred_class = 0 # The label w.r.t the explanations are generate
+        pred_class = 0 # The label w.r.t the explanations are generated
 
         lrx_out = lrx.explain_example(
             sample=None, 
@@ -226,10 +226,8 @@ class TestLorax(unittest.TestCase):
             graph=False,
             how='patterns'
         )
-        
-        print(lrx_out)  
-        print(lrx_out_old)       
 
+        # Assreting that both methods yield the same answer
         pd.testing.assert_frame_equal(lrx_out, lrx_out_old)
 
 
