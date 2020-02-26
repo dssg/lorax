@@ -733,7 +733,12 @@ class TheLorax(object):
         contrib_list.sort(key=lambda x: (x[1] * -1, x[0]))
 
         # drop the results into a dataframe to append on other information
-        contrib_df = self._build_contrib_df(contrib_list, idx, how)
+        contrib_df = self._build_contrib_df(
+            contrib_list, test_mat=self.X_test, 
+            sample=sample, 
+            feature_stats=self.feature_stats, 
+            idx=idx, how=how
+        )
 
         # adding overall feature importance from model level
         overall_importance = []
