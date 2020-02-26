@@ -405,10 +405,15 @@ class TheLorax(object):
    
     # TODO: make protected again. Making public for testing
     def populate_feature_stats(self, test_mat):
-        """Setter function for feature distribution statistics.
-
-        Pre-calculates the feature distribution information from the test matrix, including
+        """
+        Pre-calculates the feature distribution information from a test matrix, including
         type (continuous or binary), mean, median, 5th & 95th percentiles, standard deviation.
+
+        Args:
+            test_mat (pandas.DataFrame): THe test matrix in a dataframe form
+
+        return:
+            A dataframe indexed by features containing feature distribution information 
         """
         # TODO: Modified to take in a test matrix, I think the function name should change
 
