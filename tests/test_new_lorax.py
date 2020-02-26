@@ -125,36 +125,38 @@ class TestLorax(unittest.TestCase):
             The old method was emoved from the class
         """
         pass
-        # lrx = TheLorax(
-        #     clf=global_clf, 
-        #     column_names=features,
-        #     test_mat=data,
-        #     id_col='entity_id',
-        #     date_col='as_of_date', 
-        #     outcome_col='outcome'
-        # )
+        lrx = TheLorax(
+            clf=global_clf, 
+            column_names=features,
+            test_mat=data,
+            id_col='entity_id',
+            date_col='as_of_date', 
+            outcome_col='outcome'
+        )
 
-        # pred_class = 0 # The label w.r.t the explanations are generated
-        # idx = 2
-        # lrx_out_new = lrx.explain_example(
-        #     sample=None, 
-        #     test_mat=None, 
-        #     descriptive=True,
-        #     idx=idx, 
-        #     pred_class=pred_class,
-        #     num_features=10, 
-        #     graph=False
-        # )
+        pred_class = 0 # The label w.r.t the explanations are generated
+        idx = 2
+        lrx_out_new = lrx.explain_example(
+            sample=None, 
+            test_mat=None, 
+            descriptive=True,
+            idx=idx, 
+            pred_class=pred_class,
+            num_features=10, 
+            graph=False
+        )
 
-        # lrx_out_old = lrx.explain_example(
-        #     idx=idx,
-        #     pred_class=pred_class,
-        #     num_features=10,
-        #     graph=False,
-        #     how='features'
-        # )
+        lrx_out_old = lrx.explain_example_old(
+            idx=idx,
+            pred_class=pred_class,
+            num_features=10,
+            graph=False,
+            how='features'
+        )
 
-        # pd.testing.assert_frame_equal(lrx_out_new, lrx_out_old)
+        pd.testing.assert_frame_equal(lrx_out_new, lrx_out_old)
+
+        print()
 
 
     def test_explanation_patterns(self):
@@ -195,28 +197,40 @@ class TestLorax(unittest.TestCase):
         lrx = TheLorax(
             clf=clf, 
             column_names=features2,
-            column_patterns=['feature', 'category_'],
+            column_patterns=['feature'],
             test_mat=data2,
             id_col=None,
             date_col=None, 
             outcome_col='outcome'
         )
 
+        idx = 0
         sample = data2.loc[0, features2].values
         pred_class = 0 # The label w.r.t the explanations are generate
 
         lrx_out = lrx.explain_example(
-            sample=sample, 
+            sample=None, 
             test_mat=None, 
             descriptive=True,
-            idx=None, 
+            idx=idx, 
             pred_class=pred_class,
             num_features=10, 
             graph=False,
             how='patterns'
         )
+
+        lrx_out_old = lrx.explain_example_old(
+            idx=idx,
+            pred_class=pred_class,
+            num_features=10,
+            graph=False,
+            how='patterns'
+        )
         
-        print(lrx_out)        
+        print(lrx_out)  
+        print(lrx_out_old)       
+
+        pd.testing.assert_frame_equal(lrx_out, lrx_out_old)
 
 
 if __name__ == '__main__':
