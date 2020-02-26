@@ -34,22 +34,32 @@ class TheLorax(object):
     with other types of models and problems (regression/multinomial classification)
 
     Args:
-        clf (sklearn classifier) The classifier to be explained, e.g.,
+        clf (sklearn classifier): The classifier to be explained, e.g.,
             sklearn.ensemble.RandomForestClassifier
-        test_mat (pandas.DataFrame) The test matrix containing all examples to be
-            explained. If `id_col=None` (the default), the id for referencing entities
-            must be set as this dataframe's index.
-        id_col (str) The column name for the entity id in the test matrix. If `None`
-            (the default), the test matrix must be indexed by the entity id.
-        date_col (str) The date column in the matrix (default: `as_of_date`)
-        outcome_col (str) The outcome column in the matrix (default: `outcome`). To
-            indicate that the test matrix has no labels, set `outcome_col=None`.
-        name_patterns (list) An optional list of regex patterns or compiled regex
+            The classifier should be already trained. 
+        
+        column_names (List(str)): The input feature names of the data for which the classifier was trained
+
+        column_patterns (list): An optional list of regex patterns or compiled regex
             objects to group together features for reporting contributions. If using,
             each feature name in the test matrix must match one and only one pattern.
+        
+        test_mat (pandas.DataFrame): A test matrix to be pre-loaded to the object. This dataset will be used for providing feature distributions to the individual
+            If `id_col=None` (the default), the id for referencing entities
+            must be set as this dataframe's index.
+
+        id_col (str): The column name for the entity id in the test matrix. If `None`
+            (the default), the test matrix must be indexed by the entity id.
+        
+        date_col (str): The date column in the matrix (default: None).
+            If None, the matrix shouldn't contain a column with date
+        
+        outcome_col (str): The outcome column in the matrix (default: None). 
+            To indicate that the test matrix has no labels, set `outcome_col=None`.
+    
     """
 
-    def __init__(self, clf, column_names, test_mat=None, column_patterns=None, id_col=None, date_col=None, outcome_col=None):
+    def __init__(self, clf, column_names, column_patterns=None, test_mat=None,  id_col=None, date_col=None, outcome_col=None):
         self.clf = clf
 
         # NOTE: Minor. maybe this should be feature_names and feature_patterns 
@@ -63,18 +73,11 @@ class TheLorax(object):
 
         # NOTE-KA: I feel like the method should be independent of these as these seem very triage specific. 
         # We can always have a script that bridges the triage data with the explain API
+        # Leaving this decoupling to another PR
         self.id_col = id_col
         self.date_col = date_col
         self.outcome_col = outcome_col
 
-        # TODO: Move this to the load dataset
-        # self.drop_cols = []
-        # if date_col is not None and date_col not in id_col:
-        #         self.drop_cols.append(date_col)
-
-        # if outcome_col is not None:
-        #     self.drop_cols.append(outcome_col)
-        
         self.combined_index = False
         if id_col is not None:
             if type(id_col) in [list, tuple]:
@@ -96,8 +99,7 @@ class TheLorax(object):
 
     def load_dataset(self, test_mat: pd.DataFrame, id_col=None, date_col=None, outcome_col=None):
         """ Loading a test dataset to the object. 
-            This dataset can be used to provide context to the individual predition explanations.
-            Context, in this case, are the feature distributions
+            This dataset can be used to suppliment individual feature importances with feature distribution stats
 
             Args:
                 test_mat: A pandas dataframe containing the dataset
@@ -171,7 +173,7 @@ class TheLorax(object):
         (from both graphical and dataframe outputs) as the contributions reflect aggregations over
         an arbitrary number and types of features.
 
-        Arguments:
+        Args:
             sample (array): The instance that is to be explained. If this is None, a test matrix and a sample index should be provided
             
             descriptive (bool): Whether to accompany the explanations with feature distribution data of a test dataset. 
@@ -347,6 +349,7 @@ class TheLorax(object):
     def old_init(self, clf, test_mat, id_col=None,
                  date_col='as_of_date', outcome_col='outcome',
                  name_patterns=None):
+        # TODO: This method should be removed after verifying that the new init compares
         """
         Initialize Lorax.
 
