@@ -97,14 +97,16 @@ class TheLorax(object):
     def load_dataset(self, test_mat: pd.DataFrame, id_col=None, date_col=None, outcome_col=None):
         """ Loading a test dataset to the object. 
             This dataset can be used to provide context to the individual predition explanations.
-            Context entails observing feature distributions
+            Context, in this case, are the feature distributions
 
-            param test_mat: A pandas dataframe
-            param id_col: The name(s) of the columns to uniquely identify an instance (entity_id in triage land)
-            param date_col: 
-            param outcome_col: 
+            Args:
+                test_mat: A pandas dataframe containing the dataset
+                id_col: The name(s) of the columns to uniquely identify an instance (entity_id in triage land)
+                date_col: Name of the column that has the date information
+                outcome_col: If the dataframe contains the target output, the column name of the target
 
-            return: None
+            return: 
+                None
         """
         
         df = test_mat.copy()
@@ -139,25 +141,25 @@ class TheLorax(object):
         # pre-calculating the feature distributions
         self.feature_stats = self.populate_feature_stats(test_mat=self.X_test)
 
-    def explain_example(self, sample=None,
+    def explain_example(self, 
+                        sample=None,
+                        descriptive=False,
+                        test_mat=None,
+                        idx=None,
                         pred_class=None,
+                        graph=False,
                         num_features=10, 
-                        how='features', 
-                        descriptive=False, 
-                        test_mat=None, 
-                        idx=None, graph=False):
-
-        # TODO: Adapt the docstring to the new function
+                        how='features'):
         """
         Graph or return individual feature importances for an example.
 
         This method is the primary interface for TheLorax to calculate individual feature
-        importances for a given example (identified by `idx`). It can be used to either
+        importances for a given example. The function can be used to either
         return a pandas DataFrame with contributions and feature distributions (if
         `graph=False`) or a graphical representation of the top `num_features` contributions
-        (if `graph=True`, the default) for use in a jupyter notebook.
+        (if `graph=True`) for use in a jupyter notebook.
 
-        Feature contributions can be calucalted either for all features separately (`how='features',
+        Feature contributions can be calucalted either for all features separately (`how='features'`,
         the default) or using regular expression patterns to group sets of features together
         (`how='patterns'`). When graphing contributions for all features, graphs will contain two
         components:
@@ -170,19 +172,33 @@ class TheLorax(object):
         an arbitrary number and types of features.
 
         Arguments:
-            idx (int) The entity id of the example we want to explain
-            pred_class (int) The predicted class for the example (currently must be 1 or 0). The
-                returned feature contributions will be taken relative to the score for this class.
-                If None (the default), the predicted class will be assigned based on whether the
-                example's score is above or below a threshold of 0.5.
-            num_features (int) The number of features with the highest contributions to graph
+            sample (array): The instance that is to be explained. If this is None, a test matrix and a sample index should be provided
+            
+            descriptive (bool): Whether to accompany the explanations with feature distribution data of a test dataset. 
+                                Gives more context to the feature important scores. 
+                                To be used, a test dataset should be availabe to the function through `test_mat` or `load_dataset()`.
+                                If not set, only the individual feature importance scores will be returned to the user. 
+            
+            test_mat (pd.DataFrame): A test dataset to be used for descriptive explanations. If provided, this will override any dataset preloaded using `load_dataset()`
+            
+            idx (int):  The index---w.r.t to the test dataset provided through `test_mat` or `load_dataset()`---of the example we want to explain. 
+                        If both, a sample and an index are provided, sample will be ignored
+
+            pred_class (int):   The predicted class for the example (currently must be 1 or 0). The
+                                returned feature contributions will be taken relative to the score for this class.
+                                If None (the default), the predicted class will be assigned based on whether the
+                                example's score is above or below a threshold of 0.5.
+
+            graph (bool):   Whether to graph the feature contributions or return a dataframe
+                            without graphing (default: False)
+            
+            num_features (int): The number of features with the highest contributions to graph
                 (ignored if `graph=False` in which case the entire set will be returned)
-            graph (bool) Whether to graph the feature contributions or return a dataframe
-                without graphing (default: True)
-            how (str) Whether to calculate feature contributions at the level of individual features
-                (`how='features'`, the default) or using regex patterns (`how='patterns'`).
-                If using regex patterns, `name_patterns` must have been provided when the object
-                was constructed or through calling `set_name_patterns()`.
+            
+            how (str):  Whether to calculate feature contributions at the level of individual features
+                        (`how='features'`, the default) or using regex patterns (`how='patterns'`).
+                        If using regex patterns, `name_patterns` must have been provided when the object
+                        as constructed or through calling `set_name_patterns()`.
 
         Returns:
             If `graph=False`, returns a pandas dataframe with individual feature contributions
