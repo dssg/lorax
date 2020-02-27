@@ -122,9 +122,15 @@ class TestLorax(unittest.TestCase):
         feature1_contrib = lrx_out.contribution.loc['feature1']
         feature5_contrib = lrx_out.contribution.loc['feature5']
 
+        feature1_contrib = round(feature1_contrib, 5)
+        feature5_contrib = round(feature5_contrib, 5)
+        true_feature1_contrib = round(2.186415806126551, 5)
+        true_feature5_contrib = round(-3.228614405467005, 5)
+
+
         # Test cases for correct feature importances
-        self.assertEqual(feature1_contrib, 2.186415806126551)
-        self.assertEqual(feature5_contrib, -3.228614405467005)
+        self.assertEqual(feature1_contrib, true_feature1_contrib)
+        self.assertEqual(feature5_contrib, true_feature5_contrib)
 
         # Test case if we can recover lr prediction
         # Can't use all of sample because it now contains intercept as last element
