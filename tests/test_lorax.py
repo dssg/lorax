@@ -7,6 +7,7 @@ sys.path.append(project_path)
 
 import random
 import unittest
+from unittest import TestSuite
 import numpy as np
 import pandas as pd
 from datetime import datetime
@@ -106,7 +107,12 @@ class TestLorax(unittest.TestCase):
         clf.fit(X, y)
 
         # Setting up lorax
-        lrx = TheLorax(clf, data, id_col='entity_id')
+        lrx = TheLorax(clf, column_names=data.columns.values, 
+                        test_mat=data, 
+                        id_col='entity_id', 
+                        date_col='as_of_date', 
+                        outcome_col='outcome')
+        
         lrx_out = lrx.explain_example(idx=1, pred_class=1, graph=False)
 
         feature1_contrib = lrx_out.contribution.loc['feature1']
@@ -125,7 +131,10 @@ class TestLorax(unittest.TestCase):
         self.assertEqual(lrx_pred, lr_pred)
 
     def test_size_global_dict(self):
-        """Test the size of the global dict."""
+        """
+            Test the size of the global dict. Part of the model_info dictionary
+        
+        """
         n_estimators = 3
         max_depth = 1
 
@@ -136,21 +145,27 @@ class TestLorax(unittest.TestCase):
         clf = clf.fit(X, y)
 
         # Setting up lorax
-        lrx = TheLorax(clf, data, id_col='entity_id')
+        lrx = TheLorax(clf, column_names=data.columns.values, 
+                        test_mat=data, 
+                        id_col='entity_id', 
+                        date_col='as_of_date', 
+                        outcome_col='outcome')
+
         _ = lrx.explain_example(idx=1, pred_class=1, graph=False)
 
         # Checking if there as many entries, i.e., trees in
         # global_score_dict as number of estimators in forest
-        self.assertEqual(len(lrx.global_score_dict), n_estimators)
+        global_score_dict = lrx.model_info['global_score_dict']
+        self.assertEqual(len(global_score_dict), n_estimators)
 
         # Checking if every dict entry, i.e., tree has max_depth keys
         # Since max_depth=1, every tree dict should have only one entry
         for i in range(n_estimators):
-            self.assertEqual(len(lrx.global_score_dict[i]), 1)
+            self.assertEqual(len(global_score_dict[i]), 1)
 
         # Checking if dicts for only feature in tree do not
         # have more than one entry
-        for tree_idx, feat_dict in lrx.global_score_dict.items():
+        for tree_idx, feat_dict in global_score_dict.items():
             self.assertEqual(len(feat_dict), 1)
 
     def test_add_overall_feature_importance(self):
@@ -166,8 +181,18 @@ class TestLorax(unittest.TestCase):
             self.assertTupleEqual(true_result[i], result[i])
 
         # Setting up lorax
-        lrx = TheLorax(global_clf, data, id_col='entity_id')
-        lrx_out = lrx.explain_example(idx=1, pred_class=1, graph=False)
+        lrx = TheLorax(global_clf, column_names=data.columns.values, 
+                        test_mat=data, 
+                        id_col='entity_id', 
+                        date_col='as_of_date', 
+                        outcome_col='outcome')
+
+        lrx_out = lrx.explain_example(
+            idx=1, 
+            pred_class=1, 
+            graph=False, 
+            descriptive=True
+        )
 
         feature1_overall_imp = global_clf.feature_importances_[0]
 
@@ -179,7 +204,12 @@ class TestLorax(unittest.TestCase):
         """Test support of multiple rows per entity_id."""
         # Setting up lorax
         # Getting output on test matrix with one row per entity_id
-        lrx = TheLorax(global_clf, data, id_col='entity_id')
+        lrx = TheLorax(global_clf, column_names=data.columns.values, 
+                        test_mat=data, 
+                        id_col='entity_id', 
+                        date_col='as_of_date', 
+                        outcome_col='outcome')
+
         lrx_out = lrx.explain_example(idx=1, pred_class=1, graph=False)
 
         # Changing test matrix so that the second row belongs
@@ -189,7 +219,12 @@ class TestLorax(unittest.TestCase):
 
         # Checking that the output for original row of entity 1
         # remains the same when using combined index
-        lrx = TheLorax(global_clf, new_data, id_col=['entity_id', 'as_of_date'])
+        lrx = TheLorax(global_clf, column_names=data.columns.values, 
+                        test_mat=new_data, 
+                        id_col=['entity_id', 'as_of_date'], 
+                        date_col='as_of_date', 
+                        outcome_col='outcome')
+        
         out_multi_rows = lrx.explain_example(idx=(1, '2017-08-21 18:01:57.040781'),
                                              pred_class=1,
                                              graph=False)
@@ -207,4 +242,4 @@ class TestLorax(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main(exit=False)
+    unittest.main(exit=True)
