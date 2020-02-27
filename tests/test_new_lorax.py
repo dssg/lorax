@@ -4,16 +4,13 @@ project_path = os.path.join(os.path.dirname(__file__), '../')
 sys.path.append(project_path)
 
 import pandas as pd
-# from pandas.testing import assert_frame_equal
 import numpy as np
 import random
 from datetime import datetime
 from sklearn import datasets
-from sklearn.datasets import load_breast_cancer
 from sklearn.ensemble import RandomForestClassifier
 
 from lorax.lorax import TheLorax
-from lorax.utils import add_overall_feature_importance
 
 import unittest
 
@@ -48,40 +45,40 @@ global_clf = RandomForestClassifier(n_estimators=n_estimators,
                                     max_depth=max_depth,
                                     random_state=42).fit(X, y)
 
+
 class TestLorax(unittest.TestCase):
     """Tests cases for Lorax."""
 
     def test_feature_importances(self):
         """Test calculated feature importances."""
         # Setting up lorax
-        lrx = TheLorax(
-            clf=global_clf, 
-            column_names=features,
-            test_mat=data,
-            id_col='entity_id',
-            date_col='as_of_date', 
-            outcome_col='outcome')
+        lrx = TheLorax(clf=global_clf,
+                       column_names=features,
+                       test_mat=data,
+                       id_col='entity_id',
+                       date_col='as_of_date',
+                       outcome_col='outcome')
 
         # without id_col (zero indexed)
         # lrx_out = lrx.explain_example_new(test_mat=data, idx=0, pred_class=1, graph=False)
 
         sample = data.loc[0, features].values
 
-        pred_class = 0 # The label w.r.t the explanations are generated
-        lrx_out = lrx.explain_example(
-            sample=sample, 
-            test_mat=None, 
-            descriptive=True,
-            idx=None, 
-            pred_class=pred_class,
-            num_features=10, 
-            graph=False
+        pred_class = 0  # The label w.r.t the explanations are generated
+        lrx_out = lrx.explain_example(sample=sample,
+                                      test_mat=None,
+                                      descriptive=True,
+                                      idx=None,
+                                      pred_class=pred_class,
+                                      num_features=10,
+                                      graph=False
         )
         
         feature1_contrib = lrx_out.contribution.loc['feature1']
         feature5_contrib = lrx_out.contribution.loc['feature5']
 
         print('Asserting feature importance scores...')
+
         # Test cases for correct feature importances
         if pred_class == 1:
             self.assertEqual(feature1_contrib, 0.04889021376498209)
@@ -95,14 +92,12 @@ class TestLorax(unittest.TestCase):
     def test_feature_stats(self):
         """Testing the data loader"""
         
-        lrx = TheLorax(
-            clf=global_clf, 
-            column_names=features,
-            test_mat=data,
-            id_col='entity_id',
-            date_col='as_of_date', 
-            outcome_col='outcome'
-        )
+        lrx = TheLorax(clf=global_clf,
+                       column_names=features,
+                       test_mat=data,
+                       id_col='entity_id',
+                       date_col='as_of_date',
+                       outcome_col='outcome')
 
         st1 = lrx.populate_feature_stats(data[features])
 
@@ -125,39 +120,30 @@ class TestLorax(unittest.TestCase):
             The old method was emoved from the class
         """
         pass
-        lrx = TheLorax(
-            clf=global_clf, 
-            column_names=features,
-            test_mat=data,
-            id_col='entity_id',
-            date_col='as_of_date', 
-            outcome_col='outcome'
-        )
+        lrx = TheLorax(clf=global_clf,
+                       column_names=features,
+                       test_mat=data,
+                       id_col='entity_id',
+                       date_col='as_of_date',
+                       outcome_col='outcome')
 
-        pred_class = 0 # The label w.r.t the explanations are generated
+        pred_class = 0  # The label w.r.t the explanations are generated
         idx = 2
-        lrx_out_new = lrx.explain_example(
-            sample=None, 
-            test_mat=None, 
-            descriptive=True,
-            idx=idx, 
-            pred_class=pred_class,
-            num_features=10, 
-            graph=False
-        )
+        lrx_out_new = lrx.explain_example(sample=None,
+                                          test_mat=None,
+                                          descriptive=True,
+                                          idx=idx,
+                                          pred_class=pred_class,
+                                          num_features=10,
+                                          graph=False)
 
-        lrx_out_old = lrx.explain_example_old(
-            idx=idx,
-            pred_class=pred_class,
-            num_features=10,
-            graph=False,
-            how='features'
-        )
+        lrx_out_old = lrx.explain_example_old(idx=idx,
+                                              pred_class=pred_class,
+                                              num_features=10,
+                                              graph=False,
+                                              how='features')
 
         pd.testing.assert_frame_equal(lrx_out_new, lrx_out_old)
-
-        print()
-
 
     def test_explanation_patterns(self):
         """
@@ -166,9 +152,11 @@ class TestLorax(unittest.TestCase):
         """
 
         # Creating the data with cateorical columns to have regex feature patterns
-        X2, y2 = datasets.make_classification(n_samples=10000, n_features=6,
-                                    n_informative=3, n_redundant=2,
-                                    random_state=42)
+        X2, y2 = datasets.make_classification(n_samples=10000,
+                                              n_features=6,
+                                              n_informative=3,
+                                              n_redundant=2,
+                                              random_state=42)
 
         data2 = np.append(X2, y2.reshape(y2.shape[0], 1), axis=1)
         columns2 = ["feature1", "feature2",
@@ -177,11 +165,7 @@ class TestLorax(unittest.TestCase):
         data2 = pd.DataFrame(data2, columns=columns2)
 
         # Creating the categorical features
-        data2['category']= pd.cut(
-            data2['category'], 
-            bins=2, 
-            labels=['a','b']
-        )
+        data2['category'] = pd.cut(data2['category'], bins=2, labels=['a', 'b'])
 
         data2 = pd.get_dummies(data2, columns=['category'])
 
@@ -189,48 +173,41 @@ class TestLorax(unittest.TestCase):
 
         n_estimators = 10
         max_depth = 4
-        clf = RandomForestClassifier(
-            n_estimators=n_estimators, 
-            max_depth=max_depth,
-            random_state=42).fit(data2[features2].values, y2)
+        clf = RandomForestClassifier(n_estimators=n_estimators,
+                                     max_depth=max_depth,
+                                     random_state=42).fit(data2[features2].values, y2)
 
-        lrx = TheLorax(
-            clf=clf, 
-            column_names=features2,
-            column_patterns=['feature'],
-            test_mat=data2,
-            id_col=None,
-            date_col=None, 
-            outcome_col='outcome'
-        )
+        lrx = TheLorax(clf=clf,
+                       column_names=features2,
+                       column_patterns=['feature'],
+                       test_mat=data2,
+                       id_col=None,
+                       date_col=None,
+                       outcome_col='outcome')
 
         idx = 0
         sample = data2.loc[0, features2].values
-        pred_class = 0 # The label w.r.t the explanations are generated
+        pred_class = 0  # The label w.r.t the explanations are generated
 
-        lrx_out = lrx.explain_example(
-            sample=None, 
-            test_mat=None, 
-            descriptive=True,
-            idx=idx, 
-            pred_class=pred_class,
-            num_features=10, 
-            graph=False,
-            how='patterns'
-        )
+        lrx_out = lrx.explain_example(sample=None,
+                                      test_mat=None,
+                                      descriptive=True,
+                                      idx=idx,
+                                      pred_class=pred_class,
+                                      num_features=10,
+                                      graph=False,
+                                      how='patterns')
 
-        lrx_out_old = lrx.explain_example_old(
-            idx=idx,
-            pred_class=pred_class,
-            num_features=10,
-            graph=False,
-            how='patterns'
-        )
+        lrx_out_old = lrx.explain_example_old(idx=idx,
+                                              pred_class=pred_class,
+                                              num_features=10,
+                                              graph=False,
+                                              how='patterns')
 
-        # Assreting that both methods yield the same answer
+        # Asserting that both methods yield the same answer
         pd.testing.assert_frame_equal(lrx_out, lrx_out_old)
 
 
 if __name__ == '__main__':
     unittest.main()
-    
+
