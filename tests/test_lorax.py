@@ -54,11 +54,13 @@ class TestLorax(unittest.TestCase):
     def test_calculated_feature_importances(self):
         """Test calculated feature importances."""
         # Setting up lorax
-        lrx = TheLorax(clf=global_clf, column_names=data.columns.values, 
-                        test_mat=data, 
-                        id_col='entity_id', 
-                        date_col='as_of_date', 
-                        outcome_col='outcome')
+        lrx = TheLorax(clf=global_clf,
+                       column_names=data.columns.values,
+                       test_mat=data,
+                       id_col='entity_id',
+                       date_col='as_of_date',
+                       outcome_col='outcome')
+
         lrx_out = lrx.explain_example(idx=1, pred_class=1, graph=False)
 
         feature1_contrib = lrx_out.contribution.loc['feature1']
@@ -85,11 +87,13 @@ class TestLorax(unittest.TestCase):
         clf = clf.fit(X, y)
 
         # Setting up lorax
-        lrx = TheLorax(clf, column_names=data.columns.values, 
-                        test_mat=data, 
-                        id_col='entity_id', 
-                        date_col='as_of_date', 
-                        outcome_col='outcome')
+        lrx = TheLorax(clf,
+                       column_names=data.columns.values,
+                       test_mat=data,
+                       id_col='entity_id',
+                       date_col='as_of_date',
+                       outcome_col='outcome')
+
         _ = lrx.explain_example(idx=1, pred_class=1, graph=False)
 
         # Max depth is 1. Number of split_occurences must be equal to
@@ -107,11 +111,12 @@ class TestLorax(unittest.TestCase):
         clf.fit(X, y)
 
         # Setting up lorax
-        lrx = TheLorax(clf, column_names=data.columns.values, 
-                        test_mat=data, 
-                        id_col='entity_id', 
-                        date_col='as_of_date', 
-                        outcome_col='outcome')
+        lrx = TheLorax(clf,
+                       column_names=data.columns.values,
+                       test_mat=data,
+                       id_col='entity_id',
+                       date_col='as_of_date',
+                       outcome_col='outcome')
         
         lrx_out = lrx.explain_example(idx=1, pred_class=1, graph=False)
 
@@ -145,11 +150,12 @@ class TestLorax(unittest.TestCase):
         clf = clf.fit(X, y)
 
         # Setting up lorax
-        lrx = TheLorax(clf, column_names=data.columns.values, 
-                        test_mat=data, 
-                        id_col='entity_id', 
-                        date_col='as_of_date', 
-                        outcome_col='outcome')
+        lrx = TheLorax(clf,
+                       column_names=data.columns.values,
+                       test_mat=data,
+                       id_col='entity_id',
+                       date_col='as_of_date',
+                       outcome_col='outcome')
 
         _ = lrx.explain_example(idx=1, pred_class=1, graph=False)
 
@@ -181,11 +187,12 @@ class TestLorax(unittest.TestCase):
             self.assertTupleEqual(true_result[i], result[i])
 
         # Setting up lorax
-        lrx = TheLorax(global_clf, column_names=data.columns.values, 
-                        test_mat=data, 
-                        id_col='entity_id', 
-                        date_col='as_of_date', 
-                        outcome_col='outcome')
+        lrx = TheLorax(global_clf,
+                       column_names=data.columns.values,
+                       test_mat=data,
+                       id_col='entity_id',
+                       date_col='as_of_date',
+                       outcome_col='outcome')
 
         lrx_out = lrx.explain_example(
             idx=1, 
@@ -204,11 +211,12 @@ class TestLorax(unittest.TestCase):
         """Test support of multiple rows per entity_id."""
         # Setting up lorax
         # Getting output on test matrix with one row per entity_id
-        lrx = TheLorax(global_clf, column_names=data.columns.values, 
-                        test_mat=data, 
-                        id_col='entity_id', 
-                        date_col='as_of_date', 
-                        outcome_col='outcome')
+        lrx = TheLorax(global_clf,
+                       column_names=data.columns.values,
+                       test_mat=data,
+                       id_col='entity_id',
+                       date_col='as_of_date',
+                       outcome_col='outcome')
 
         lrx_out = lrx.explain_example(idx=1, pred_class=1, graph=False)
 
@@ -219,11 +227,12 @@ class TestLorax(unittest.TestCase):
 
         # Checking that the output for original row of entity 1
         # remains the same when using combined index
-        lrx = TheLorax(global_clf, column_names=data.columns.values, 
-                        test_mat=new_data, 
-                        id_col=['entity_id', 'as_of_date'], 
-                        date_col='as_of_date', 
-                        outcome_col='outcome')
+        lrx = TheLorax(global_clf,
+                       column_names=data.columns.values,
+                       test_mat=new_data,
+                       id_col=['entity_id', 'as_of_date'],
+                       date_col='as_of_date',
+                       outcome_col='outcome')
         
         out_multi_rows = lrx.explain_example(idx=(1, '2017-08-21 18:01:57.040781'),
                                              pred_class=1,
