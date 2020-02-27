@@ -59,7 +59,12 @@ class TheLorax(object):
     
     """
 
-    def __init__(self, clf, column_names, column_patterns=None, test_mat=None,  id_col=None, date_col=None, outcome_col=None):
+    def __init__(self, clf, column_names,
+                 column_patterns=None,
+                 test_mat=None,
+                 id_col=None,
+                 date_col=None, outcome_col=None):
+
         self.clf = clf
 
         # NOTE: Minor. maybe this should be feature_names and feature_patterns 
@@ -318,14 +323,12 @@ class TheLorax(object):
             else:
                 fstats = self.populate_feature_stats(test_mat)
 
-            contrib_df = self._build_contrib_df(
-                contrib_list, 
-                test_mat=test_mat, 
-                idx=idx,
-                sample=sample, 
-                feature_stats=fstats,
-                how=how
-            )
+            contrib_df = self._build_contrib_df(contrib_list,
+                                                test_mat=test_mat,
+                                                idx=idx,
+                                                sample=sample,
+                                                feature_stats=fstats,
+                                                how=how)
 
             # adding overall feature importance from model level
             overall_importance = []
@@ -349,15 +352,18 @@ class TheLorax(object):
             )
 
             if graph:  
-                self._plot_graph(idx, pred_class, score,
-                                num_features, contrib_df, how)
+                self._plot_graph(idx,
+                                 pred_class,
+                                 score,
+                                 num_features,
+                                 contrib_df,
+                                 how)
 
         else:
             contrib_df = self._build_contrib_df_sample(contrib_list, how=how)
 
         return contrib_df
 
-   
     def old_init(self, clf, test_mat, id_col=None,
                  date_col='as_of_date', outcome_col='outcome',
                  name_patterns=None):
@@ -547,7 +553,6 @@ class TheLorax(object):
         contrib_df.sort_values('contribution', ascending=False, inplace=True)
 
         return contrib_df
-
 
     def _build_contrib_df(self, mean_by_trees_list, test_mat, idx, sample, feature_stats, how='features'):
         """
