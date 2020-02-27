@@ -235,7 +235,15 @@ class TheLorax(object):
             sample = sample.values
 
         if self.X_test is not None and idx is not None:
-            sample = self.X_test.loc[idx].values
+            sample = self.X_test.loc[idx]
+
+            # When creating X_test in load data, 
+            # if the classifier contains a Intercept, it is added as a feature. 
+            # Have to remove it before the inference phase
+            if 'Intercept' in sample.index.values:
+                sample = sample.drop(['Intercept'])
+            
+            sample = sample.values
 
         # Formatting the test data matrix by setting appropriate index and removing non-feature coulmns
         if test_mat is not None:            
@@ -269,6 +277,7 @@ class TheLorax(object):
         elif isinstance(self.clf, LogisticRegression):
             # Getting values for Random Forest Classifier
             # TODO: The column names need to be consolidated
+
             contrib_list = get_contrib_list_LR(self.clf, sample, self.column_names)
 
         # Setting the prediction class
