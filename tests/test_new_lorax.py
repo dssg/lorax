@@ -119,7 +119,6 @@ class TestLorax(unittest.TestCase):
             returned the same results as the old one. 
             The old method was emoved from the class
         """
-        pass
         lrx = TheLorax(clf=global_clf,
                        column_names=features,
                        test_mat=data,
@@ -179,7 +178,7 @@ class TestLorax(unittest.TestCase):
 
         lrx = TheLorax(clf=clf,
                        column_names=features2,
-                       column_patterns=['feature'],
+                       column_patterns=['feature', 'category_'],
                        test_mat=data2,
                        id_col=None,
                        date_col=None,
