@@ -7,7 +7,6 @@ sys.path.append(project_path)
 
 import random
 import unittest
-from unittest import TestSuite
 import numpy as np
 import pandas as pd
 from datetime import datetime
