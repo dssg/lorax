@@ -549,6 +549,12 @@ class TheLorax(object):
                                   columns=['feature', 'contribution'])
         contrib_df.set_index('feature', inplace=True)
 
+        # if we're using name patterns, aggregate columns to pattern level,
+        # otherwise, join on column-level statistics (not available for pattern-level)
+        if how == 'patterns':
+            contrib_df = contrib_df.join(self.column_patterns, how='inner')
+            contrib_df = contrib_df.groupby(['name_pattern'])['contribution'].sum().to_frame()
+
         # sort the resulting dataframe in descending order by contribution
         contrib_df.sort_values('contribution', ascending=False, inplace=True)
 
