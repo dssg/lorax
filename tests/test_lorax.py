@@ -1,4 +1,9 @@
 """Tests for Lorax."""
+# TODO: Figure out how to do this optimally
+import os
+import sys
+project_path = os.path.join(os.path.dirname(__file__), '../')
+sys.path.append(project_path)
 
 import random
 import unittest
@@ -10,7 +15,7 @@ from sklearn import datasets
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 
-from lorax import TheLorax
+from lorax.lorax import TheLorax
 from lorax.utils import add_overall_feature_importance
 
 random.seed(42)
@@ -48,7 +53,11 @@ class TestLorax(unittest.TestCase):
     def test_calculated_feature_importances(self):
         """Test calculated feature importances."""
         # Setting up lorax
-        lrx = TheLorax(global_clf, data, id_col='entity_id')
+        lrx = TheLorax(clf=global_clf, column_names=data.columns.values, 
+                        test_mat=data, 
+                        id_col='entity_id', 
+                        date_col='as_of_date', 
+                        outcome_col='outcome')
         lrx_out = lrx.explain_example(idx=1, pred_class=1, graph=False)
 
         feature1_contrib = lrx_out.contribution.loc['feature1']
@@ -60,7 +69,11 @@ class TestLorax(unittest.TestCase):
         self.assertFalse('feature3' in lrx_out.contribution)
 
     def test_aggregated_dict(self):
-        """Test aggregated_dict."""
+        """
+            Test aggregated_dict. In the modified version the 
+            aggregated dict is an element of a dictionary named model_info
+
+        """
         n_estimators = 5
         max_depth = 1
 
@@ -71,14 +84,19 @@ class TestLorax(unittest.TestCase):
         clf = clf.fit(X, y)
 
         # Setting up lorax
-        lrx = TheLorax(clf, data, id_col='entity_id')
+        lrx = TheLorax(clf, column_names=data.columns.values, 
+                        test_mat=data, 
+                        id_col='entity_id', 
+                        date_col='as_of_date', 
+                        outcome_col='outcome')
         _ = lrx.explain_example(idx=1, pred_class=1, graph=False)
 
         # Max depth is 1. Number of split_occurences must be equal to
         # occurences_in_n_trees.
-        for feature in lrx.aggregated_dict:
-            split_occ = lrx.aggregated_dict[feature]['diff_list']['split_occurences']
-            occ_trees = lrx.aggregated_dict[feature]['mean_diff_list']['occurences_in_n_trees']
+        aggregated_dict = lrx.model_info['aggregated_dict']
+        for feature in aggregated_dict:
+            split_occ = aggregated_dict[feature]['diff_list']['split_occurences']
+            occ_trees = aggregated_dict[feature]['mean_diff_list']['occurences_in_n_trees']
             self.assertEqual(split_occ, occ_trees)
 
     def test_logistic_regression_importances(self):
