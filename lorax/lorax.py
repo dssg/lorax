@@ -120,7 +120,7 @@ class TheLorax(object):
                 self.combined_index = True
         
         # exclude non-feature columns (date, outcome if present)
-            if date_col not in id_col:
+            if (date_col is not None) and (date_col not in id_col):
                 self.drop_cols.append(date_col)
 
         if outcome_col is not None:
@@ -140,6 +140,9 @@ class TheLorax(object):
         if hasattr(self.clf, 'intercept_'):
             self.X_test["Intercept"] = [self.clf.intercept_[0] for i in range(len(self.X_test))]
 
+        # Making sure the column names match the test matrices columns
+        self.column_names = self.X_test.columns.values
+        
         # pre-calculating the feature distributions
         self.feature_stats = self.populate_feature_stats(test_mat=self.X_test)
 
