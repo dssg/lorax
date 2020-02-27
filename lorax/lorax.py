@@ -479,7 +479,7 @@ class TheLorax(object):
         regex mapping associated with the object).
 
         Arguments:
-            name_patters (list) A list of regex patterns or compiled regex objects to
+            name_patterns (list) A list of regex patterns or compiled regex objects to
             group together features for reporting contributions. If using, each feature
             name in the test matrix must match one and only one pattern.
         """
@@ -807,7 +807,6 @@ class TheLorax(object):
                              num_features, contrib_df, how)
         else:
             return contrib_df
-
 
     def speak_for_the_trees(self, id, pred_class=None, num_features=20, graph=True, how='features'):
         """Explain an example's score.
